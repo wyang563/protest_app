@@ -3,6 +3,7 @@ from flask_cors import CORS, cross_origin
 import whisper
 import os
 from routes import bp
+import sqlite3
 
 app = Flask(__name__)
 CORS(app, origins=["https://protest.morelos.dev", "http://localhost:3000"])
@@ -13,6 +14,46 @@ app.register_blueprint(bp)
 # You can choose a model size: tiny, base, small, medium, large.
 MODEL_TYPE = "base"
 model = whisper.load_model(MODEL_TYPE)
+
+@app.route('/api/query', methods=['GET'])
+@cross_origin(origin="https://protest.morelos.dev")
+def query_transcriptions_db():
+    """
+    SQL Query the transcriptions database for all transcriptions.
+    """ 
+    # Retrieve the SQL query from the GET request parameters
+    sql_query = request.args.get('query')
+    if not sql_query:
+        return jsonify({"error": "Missing query parameter"}), 400
+
+    # Define the path to the SQLite database file
+    # Adjust this path as necessary to point to your transcriptions.db
+    # db_file = os.path.join("backend", "transcriptions.db")
+    db_file = "transcriptions.db"
+    
+    try:
+        # Connect to the SQLite database
+        conn = sqlite3.connect(db_file)
+        cursor = conn.cursor()
+
+        # Execute the query (WARNING: In production, never execute unsanitized SQL)
+        cursor.execute(sql_query)
+        rows = cursor.fetchall()
+
+        # Retrieve column names for building dict results
+        col_names = [description[0] for description in cursor.description]
+
+        # Convert each row to a dictionary keyed by column name
+        results = [dict(zip(col_names, row)) for row in rows]
+
+        # Close the connection
+        conn.close()
+
+        # Return the results as JSON
+        return jsonify(results)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/transcribe', methods=['POST'])
 @cross_origin(origin="https://protest.morelos.dev")

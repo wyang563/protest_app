@@ -51,7 +51,6 @@ const Audio: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Learn React
         </a>
       </header>
 

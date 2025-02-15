@@ -6,7 +6,7 @@ from datetime import datetime
 import sys
 import whisper
 import threading
-import shutil
+import sqlite3
 
 # A global lock to help with any directory access if needed
 directory_lock = threading.Lock()
@@ -47,7 +47,7 @@ def record_stream(audio_store, stream_url, duration="120"):
         print(f"Error: {e}")
         sys.exit(1)
 
-def transcribe_stream(audio_store, save_dir, model, segment_duration):
+def transcribe_stream(audio_store, stream_name, model, segment_duration, db):
     """
     Continuously looks for the earliest audio file in 'audio_store', transcribes it using Whisper,
     and writes the transcription (with timestamps for each segment) to a text file.
@@ -77,21 +77,21 @@ def transcribe_stream(audio_store, save_dir, model, segment_duration):
             result = model.transcribe(full_path)
 
             # Create a transcription text file with the same base filename
-            transcription_file = os.path.join(save_dir, earliest_file.replace('.wav', '.txt'))
-            with open(transcription_file, 'w', encoding='utf-8') as tf:
-                for segment in result.get("segments", []):
-                    start_sec = segment["start"]
-                    end_sec = segment["end"]
-                    text = segment["text"].strip()
-                    # Format seconds to HH:MM:SS
-                    start_time_str = time.strftime('%H:%M:%S', time.gmtime(start_sec))
-                    end_time_str = time.strftime('%H:%M:%S', time.gmtime(end_sec))
-                    tf.write(f"[{start_time_str} - {end_time_str}] {text}\n")
-            print(f"Transcription saved to {transcription_file}")
+            for segment in result.get("segments", []):
+                start_sec = segment["start"]
+                text = segment["text"].strip()
+                # Format seconds to HH:MM:SS
+                start_time_str = time.strftime('%H:%M:%S', time.gmtime(start_sec))
+                db.execute("""
+                INSERT INTO transcriptions (radio_stream, start_time, text)
+                VALUES (?, ?, ?, ?)
+                """, (stream_name, start_time_str, text))
+                conn.commit()
 
             # After processing, remove the audio file
             with directory_lock:
                 os.remove(full_path)
+
     except KeyboardInterrupt:
         print("User pressed Ctrl+C. Exiting continuous transcription.")
         sys.exit(0) 
@@ -99,32 +99,16 @@ def transcribe_stream(audio_store, save_dir, model, segment_duration):
         print(f"Error: {e}")
         sys.exit(1)
 
-if __name__ == "__main__":
-    MODEL_TYPE = "base"
-    model = whisper.load_model(MODEL_TYPE)
-    
-    params = {
-        'countrycode': 'US',   # Adjust the country code as needed
-        'limit': 10           # Limit the results to 100 stations
-    }
-    
-    # Replace this with the actual stream search URL
-    stream_search_url = "https://de1.api.radio-browser.info/json/stations"
-    # stream_url = get_station(stream_search_url, stream_search_url)
-    stream_url = "https://tunein.cdnstream1.com/2868_96.mp3"
-    
-    # TUNABLE PARAMETERS 
-    audio_store = "radio_stream/audio_store"
-    save_dir = "backend/transcriptions"
+def init_stream_process(stream_name, stream_url, model, db):
+    """
+    Initialize the recording and transcription threads for a given stream.
+    """
+    audio_store = f"radio_stream/audio_store/{stream_name}"
     segment_duration = "120"
 
-    if os.path.exists(audio_store):
-        shutil.rmtree(audio_store, ignore_errors=True)
-    os.makedirs(audio_store)
+    if not os.path.exists(audio_store):
+        os.makedirs(audio_store)
 
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    
     # Create threads for recording and transcribing streams.
     # Running them as daemon threads allows the program to exit cleanly.
     record_thread = threading.Thread(
@@ -134,7 +118,7 @@ if __name__ == "__main__":
     )
     transcribe_thread = threading.Thread(
         target=transcribe_stream, 
-        args=(audio_store, save_dir, model, segment_duration),
+        args=(audio_store, stream_name, model, segment_duration, db),
         daemon=True
     )
 
@@ -144,3 +128,27 @@ if __name__ == "__main__":
     # Keep the main thread running as long as the child threads are active
     record_thread.join()
     transcribe_thread.join()
+
+if __name__ == "__main__":
+    MODEL_TYPE = "base"
+    model = whisper.load_model(MODEL_TYPE)
+
+    # create SQLite database if it doesn't exist
+    db_file = os.path.join("backend", "transcriptions.db")
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS transcriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        radio_stream TEXT,
+        start_time TEXT,
+        text TEXT
+        )
+    """)
+    conn.commit()
+
+    # stream_search_url = "https://de1.api.radio-browser.info/json/stations"
+    stream_url = "https://tunein.cdnstream1.com/2868_96.mp3"
+    stream_name = "CNN" 
+
+    init_stream_process(stream_name, stream_url, model, cursor)
