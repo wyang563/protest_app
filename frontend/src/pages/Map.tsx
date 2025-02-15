@@ -248,7 +248,7 @@ export const Map: React.FC = () => {
                 <div className="h-[600px] w-[600px] mx-auto rounded-lg overflow-hidden shadow-lg">
                     <MapContainer 
                         center={position} 
-                        zoom={15}
+                        zoom={20}
                         style={mapStyle}
                         ref={mapRef}
                         zoomControl={true}
