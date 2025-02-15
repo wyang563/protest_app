@@ -44,4 +44,5 @@ def transcribe_audio():
     return jsonify({"transcription": text})
 
 if __name__ == '__main__':
+    # Run on port 5000 so React (port 3000) can access it
     app.run(host='0.0.0.0', port=5001, debug=True)
