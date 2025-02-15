@@ -5,6 +5,15 @@ import L from 'leaflet';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
+const DOT_COLORS = [
+  '#3B82F6', // blue
+  '#10B981', // green
+  '#F59E0B', // yellow
+  '#EF4444', // red
+  '#8B5CF6', // purple
+  '#EC4899', // pink
+];
+
 // Custom style for the map container a
 const mapStyle = {
   height: '100%',
@@ -24,6 +33,9 @@ interface Session {
   id: string;
   position: [number, number];
   lastUpdate: number;
+  joinedAt: string;
+  // Add color index to track user's assigned color
+  colorIndex?: number;
 }
 
 // This component handles map position updates
@@ -46,6 +58,11 @@ export const Map: React.FC = () => {
     const watchIdRef = useRef<number | null>(null);
     const sessionId = useRef<string>(crypto.randomUUID());
 
+    const getSessionColor = (sessionId: string): string => {
+      const colorIndex = parseInt(sessionId, 16) % DOT_COLORS.length;
+      return DOT_COLORS[colorIndex];
+    };
+
     // Function to update server with position
     const updateServerPosition = async (pos: [number, number]) => {
       try {
@@ -58,6 +75,7 @@ export const Map: React.FC = () => {
             sessionId: sessionId.current,
             position: pos,
             timestamp: Date.now(),
+            joinedAt: new Date().toISOString(), // Add join time
           }),
         });
         if (!response.ok) throw new Error('Failed to update location');
@@ -77,7 +95,7 @@ export const Map: React.FC = () => {
         console.error('Error fetching sessions:', error);
       }
     };
-    
+
     useEffect(() => {
       // Fetch sessions periodically
       const sessionInterval = setInterval(fetchSessions, 2000);
@@ -199,16 +217,27 @@ export const Map: React.FC = () => {
                             minZoom={3}
                         />
                         {sessions.map((session) => (
-                            <CircleMarker 
-                                key={session.id}
-                                center={session.position}
-                                {...circleMarkerStyle}
-                                color={session.id === sessionId.current ? '#3B82F6' : '#10B981'}
-                            >
-                                <Popup>
-                                    {session.id === sessionId.current ? 'You' : 'Other Protester'}
-                                </Popup>
-                            </CircleMarker>
+                          <CircleMarker 
+                            key={session.id}
+                            center={session.position}
+                            {...circleMarkerStyle}
+                            color={getSessionColor(session.id)}
+                            radius={session.id === sessionId.current ? 10 : 8}
+                          >
+                            <Popup>
+                              <div className="p-2">
+                                <h3 className="font-bold mb-2">
+                                  {session.id === sessionId.current ? 'You' : 'Other Protester'}
+                                </h3>
+                                <ul className="text-sm">
+                                  <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
+                                  <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
+                                  <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
+                                  <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
+                                </ul>
+                              </div>
+                            </Popup>
+                          </CircleMarker>
                         ))}
                     </MapContainer>
                 </div>
