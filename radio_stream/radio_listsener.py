@@ -11,7 +11,7 @@ def get_station(stream_search_url, params):
     stream_station = stations[0]["url"]
     return stream_station
 
-def transcribe_stream(audio_store, search_params, stream_search_url, duration="120"):
+def record_stream(audio_store, search_params, stream_search_url, duration="120"):
     """
     Continuously stream audio from the given URL.
     Each segment is 'duration' seconds long.
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     # load the radio station
     params = {
         'countrycode': 'US',  # Adjust the country code as needed
-        'limit': 10           # Limit the results to 10 stations
+        'limit': 100           # Limit the results to 10 stations
     }
     stream_url = get_station(params)
-    transcribe_stream(stream_url, duration="120")
+    record_stream(stream_url, duration="120")
