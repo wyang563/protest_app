@@ -1,69 +1,77 @@
-import React, { useState } from 'react';
-import { CSSProperties } from 'react';
+import React, { useState, ChangeEvent } from 'react';
 
 const Audio: React.FC = () => {
+  const [file, setFile] = useState<File | null>(null);
   const [transcription, setTranscription] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [filePath, setFilePath] = useState<string>('');
 
-  const handleTranscription = async (): Promise<void> => {
-    if (!filePath) {
-      setTranscription('Please enter a file path first.');
+  // Handler for file selection
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files && e.target.files[0];
+    setFile(selectedFile || null);
+  };
+
+  // Handler to call the Whisper API
+  const handleTranscribe = async () => {
+    if (!file) {
+      alert('Please select an audio file first!');
       return;
     }
-    try {
-      setLoading(true);
-      setTranscription('');
-      
-      const formData = new FormData();
-      formData.append('file', {
-        uri: filePath,
-        name: 'audiofile',
-        type: 'audio/wav',
-      } as any);
 
+    try {
+      const formData = new FormData();
+      formData.append('audio_file', file);
+
+      // Adjust your endpoint URL if necessary
       const response = await fetch('http://localhost:5000/api/transcribe', {
         method: 'POST',
         body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
       });
 
+      // You can define a type/interface for your JSON response if you want
       const data = await response.json();
-      setTranscription(data.transcription || 'No transcription available');
+      setTranscription(data.transcription || 'No transcription was returned');
     } catch (error) {
-      console.error('Transcription error:', error);
-      setTranscription('Error during transcription');
-    } finally {
-      setLoading(false);
+      console.error('Error during transcription:', error);
+      setTranscription('An error occurred during transcription.');
     }
   };
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>Whisper Transcription Demo</h2>
-      <input
-        style={styles.input}
-        placeholder="Enter file path"
-        value={filePath}
-        onChange={(e) => setFilePath(e.target.value)}
-      />
-      <button onClick={handleTranscription} disabled={loading || !filePath}>
-        Transcribe Audio
-      </button>
-      {loading && <div style={styles.loader}>Loading...</div>}
-      <p style={styles.transcription}>{transcription || 'Press the button to transcribe the audio file.'}</p>
+    <div className="App">
+      <header className="App-header">
+        <a
+          className="App-link"
+          href="https://reactjs.org"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Learn React
+        </a>
+      </header>
+
+      <main style={{ marginTop: '2rem' }}>
+        {/* File input for audio selection */}
+        <input
+          type="file"
+          accept="audio/*"
+          onChange={handleFileChange}
+          style={{ marginBottom: '1rem' }}
+        />
+
+        {/* Button to initiate the transcription request */}
+        <button onClick={handleTranscribe}>
+          Transcribe
+        </button>
+
+        {/* Display transcription result if available */}
+        {transcription && (
+          <p style={{ marginTop: '1rem' }}>
+            <strong>Transcription:</strong> {transcription}
+          </p>
+        )}
+      </main>
     </div>
   );
-};
-
-const styles: { [key: string]: CSSProperties } = {
-  container: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px' },
-  title: { fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' },
-  input: { width: '80%', padding: '10px', border: '1px solid #ccc', marginBottom: '20px' },
-  loader: { marginTop: '10px', fontSize: '16px', color: '#007AFF' },
-  transcription: { marginTop: '20px', fontSize: '16px', textAlign: 'center' },
-};
+} 
 
 export default Audio;
