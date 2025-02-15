@@ -35,7 +35,8 @@ interface Session {
   lastUpdate: number;
   joinedAt: string;
   colorIndex?: number;
-  isDummy: boolean;  // Make this required
+  isDummy: boolean;
+  creatorId?: string;  // Add this to track which real user created the dummies
   ip?: string;
 }
 
@@ -71,7 +72,7 @@ export const Map: React.FC = () => {
       // Force an immediate fetch of sessions with new dummy count
       fetchSessions();
     };
-    
+
     // Function to update server with position
     const updateServerPosition = async (pos: [number, number]) => {
       try {
@@ -96,7 +97,7 @@ export const Map: React.FC = () => {
     // Function to fetch all sessions
     const fetchSessions = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${submittedDummyCount}`);
+        const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
         if (!response.ok) throw new Error('Failed to fetch sessions');
         const data = await response.json();
         setSessions(data);
@@ -104,7 +105,7 @@ export const Map: React.FC = () => {
         console.error('Error fetching sessions:', error);
       }
     };
-    
+        
     useEffect(() => {
       // Fetch sessions periodically
       const sessionInterval = setInterval(fetchSessions, 2000);
@@ -250,13 +251,13 @@ export const Map: React.FC = () => {
                         />
                         {sessions.map((session) => (
                           <CircleMarker 
-                          key={session.id}
-                          center={session.position}
-                          {...circleMarkerStyle}
-                          color={session.isDummy ? '#999999' : getSessionColor(session.id)}
-                          radius={session.id === sessionId.current ? 10 : 8}
-                          opacity={session.isDummy ? 0.5 : 1}
-                        >
+                            key={session.id}
+                            center={session.position}
+                            {...circleMarkerStyle}
+                            color={getSessionColor(session.id)} // Remove the isDummy check to use colors for all
+                            radius={session.id === sessionId.current ? 10 : 8}
+                            opacity={session.isDummy ? 0.5 : 1} // Keep reduced opacity for dummies
+                          >
                             <Popup>
                               <div className="p-2">
                                 <h3 className="font-bold mb-2">
