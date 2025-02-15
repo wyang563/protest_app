@@ -12,12 +12,12 @@ bp = Blueprint('routes', __name__)
 sessions = {}
 session_lock = threading.Lock()
 
-def generate_random_coordinates(center: tuple[float, float], min_distance: float, max_distance: float, count: int) -> list:
-    """Generate random coordinates within a radius range from center point"""
+def generate_random_coordinates(center: tuple[float, float], max_distance: float, count: int) -> list:
+    """Generate random coordinates within a radius from center point"""
     dummy_positions = []
     for _ in range(count):
-        # Random distance between min and max (in meters)
-        distance = random.uniform(min_distance, max_distance)
+        # Random distance between 0 and max (in meters)
+        distance = random.uniform(0, max_distance)  # Changed to start from 0
         # Random angle
         angle = random.uniform(0, 2 * pi)
         
@@ -115,8 +115,7 @@ def get_sessions():
             # Generate new dummy positions
             dummy_positions = generate_random_coordinates(
                 center=tuple(center_of_mass),
-                min_distance=100,  # 100 meters
-                max_distance=200,  # 200 meters
+                max_distance=200,  # 0-200 meters range
                 count=dummy_count
             )
             
