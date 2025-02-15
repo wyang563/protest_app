@@ -1,7 +1,7 @@
 import React, { useState, ChangeEvent } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { Map } from './pages/Map';
-import { Audio } from './pages/Audio';
+import Audio from './pages/Audio';
 import 'leaflet/dist/leaflet.css';
 
 function App() {

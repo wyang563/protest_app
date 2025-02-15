@@ -1,26 +1,14 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Button, ActivityIndicator } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
+import { CSSProperties } from 'react';
 
 const Audio: React.FC = () => {
   const [transcription, setTranscription] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
-  const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerResult | null>(null);
-
-  const pickFile = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*' });
-      if (!result.canceled) {
-        setSelectedFile(result); 
-      }
-    } catch (error) {
-      console.error('Error selecting file:', error);
-    }
-  };
+  const [filePath, setFilePath] = useState<string>('');
 
   const handleTranscription = async (): Promise<void> => {
-    if (!selectedFile) {
-      setTranscription('Please select a file first.');
+    if (!filePath) {
+      setTranscription('Please enter a file path first.');
       return;
     }
     try {
@@ -29,12 +17,12 @@ const Audio: React.FC = () => {
       
       const formData = new FormData();
       formData.append('file', {
-        uri: selectedFile.assets[0].uri,
-        name: selectedFile.assets[0].name,
-        type: selectedFile.assets[0].mimeType,
-      });
+        uri: filePath,
+        name: 'audiofile',
+        type: 'audio/wav',
+      } as any);
 
-      const response = await fetch('http://your-flask-api-url/transcribe', {
+      const response = await fetch('http://localhost:5000/api/transcribe', {
         method: 'POST',
         body: formData,
         headers: {
@@ -53,21 +41,29 @@ const Audio: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Whisper Transcription Demo</Text>
-      <Button title="Select Audio File" onPress={pickFile} disabled={loading} />
-      {selectedFile && <Text style={styles.fileText}>Selected: {selectedFile.assets[0].name}</Text>}
-      <Button title="Transcribe Audio" onPress={handleTranscription} disabled={loading || !selectedFile} />
-      {loading && <ActivityIndicator size="large" color="#007AFF" />}
-      <Text style={styles.transcription}>{transcription || 'Press the button to transcribe the audio file.'}</Text>
-    </View>
+    <div style={styles.container}>
+      <h2 style={styles.title}>Whisper Transcription Demo</h2>
+      <input
+        style={styles.input}
+        placeholder="Enter file path"
+        value={filePath}
+        onChange={(e) => setFilePath(e.target.value)}
+      />
+      <button onClick={handleTranscription} disabled={loading || !filePath}>
+        Transcribe Audio
+      </button>
+      {loading && <div style={styles.loader}>Loading...</div>}
+      <p style={styles.transcription}>{transcription || 'Press the button to transcribe the audio file.'}</p>
+    </div>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  fileText: { marginTop: 10, fontSize: 16, textAlign: 'center' },
-  transcription: { marginTop: 20, fontSize: 16, textAlign: 'center' },
-});
+const styles: { [key: string]: CSSProperties } = {
+  container: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px' },
+  title: { fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' },
+  input: { width: '80%', padding: '10px', border: '1px solid #ccc', marginBottom: '20px' },
+  loader: { marginTop: '10px', fontSize: '16px', color: '#007AFF' },
+  transcription: { marginTop: '20px', fontSize: '16px', textAlign: 'center' },
+};
 
+export default Audio;
