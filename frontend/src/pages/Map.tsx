@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaf
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// Custom style for the map container
+// Custom style for the map container a
 const mapStyle = {
   height: '100%',
   width: '100%',
