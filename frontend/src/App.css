@@ -1,45 +1,46 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-}
-
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-
 .leaflet-container {
   width: 100%;
   height: 100%;
   border-radius: 0.5rem;
+}
+
+.map-tiles {
+  filter: contrast(95%) saturate(95%);
+}
+
+/* Remove any opacity from controls */
+.leaflet-control {
+  opacity: 1 !important;
+  z-index: 1000 !important;
+}
+/* Make zoom controls more visible */
+.leaflet-control-zoom {
+  border: none !important;
+  margin: 15px !important;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.2) !important;
+}
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  background-color: white !important;
+  color: #3B82F6 !important;
+  border: 2px solid #3B82F6 !important;
+  border-radius: 6px !important;
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 26px !important;
+  font-size: 16px !important;
+  transition: all 0.2s ease-in-out !important;
+  cursor: pointer !important;
+}
+
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+  background-color: #3B82F6 !important;
+  color: white !important;
+}
+
+/* Remove attribution */
+.leaflet-control-attribution {
+  display: none !important;
 }
