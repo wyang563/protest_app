@@ -7,10 +7,10 @@
 /backend/venv
 
 # testing
-/coverage
+/frontend/coverage
 
 # production
-/build
+/frontend/build
 
 # misc
 .DS_Store

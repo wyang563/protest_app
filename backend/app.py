@@ -8,7 +8,7 @@ CORS(app)  # Allow cross-origin requests for local dev, if needed
 
 # Load the Whisper model once at startup to avoid reloading on every request.
 # You can choose a model size: tiny, base, small, medium, large.
-model = whisper.load_model("base")
+model = whisper.load_model("tiny")
 
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe_audio():
@@ -24,7 +24,7 @@ def transcribe_audio():
 
     # 2. Optionally save the file temporarily if needed (or process in-memory)
     #    Below, we save to a temporary path. Adjust as necessary.
-    temp_path = "temp_audio.wav"
+    temp_path = "../test.wav"
     audio_file.save(temp_path)
 
     # 3. Transcribe using Whisper
