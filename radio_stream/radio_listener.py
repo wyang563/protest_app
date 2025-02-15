@@ -47,12 +47,15 @@ def record_stream(audio_store, stream_url, duration="120"):
         print(f"Error: {e}")
         sys.exit(1)
 
-def transcribe_stream(audio_store, stream_name, model, segment_duration, db):
+def transcribe_stream(audio_store, stream_name, model, segment_duration):
     """
     Continuously looks for the earliest audio file in 'audio_store', transcribes it using Whisper,
     and writes the transcription (with timestamps for each segment) to a text file.
     """
     try:
+        conn = sqlite3.connect("../backend/transcriptions.db")
+        db = conn.cursor()
+
         while True:
             # List all .wav files in the audio_store
             with directory_lock:
@@ -77,14 +80,16 @@ def transcribe_stream(audio_store, stream_name, model, segment_duration, db):
             result = model.transcribe(full_path)
 
             # Create a transcription text file with the same base filename
+            start_time = time.time()
             for segment in result.get("segments", []):
                 start_sec = segment["start"]
                 text = segment["text"].strip()
                 # Format seconds to HH:MM:SS
-                start_time_str = time.strftime('%H:%M:%S', time.gmtime(start_sec))
+                cur_time = start_time + start_sec 
+                start_time_str = time.strftime('%H:%M:%S', time.gmtime(cur_time))
                 db.execute("""
                 INSERT INTO transcriptions (radio_stream, start_time, text)
-                VALUES (?, ?, ?, ?)
+                VALUES (?, ?, ?)
                 """, (stream_name, start_time_str, text))
                 conn.commit()
 
@@ -99,11 +104,11 @@ def transcribe_stream(audio_store, stream_name, model, segment_duration, db):
         print(f"Error: {e}")
         sys.exit(1)
 
-def init_stream_process(stream_name, stream_url, model, db):
+def init_stream_process(stream_name, stream_url, model):
     """
     Initialize the recording and transcription threads for a given stream.
     """
-    audio_store = f"radio_stream/audio_store/{stream_name}"
+    audio_store = f"audio_store/{stream_name}"
     segment_duration = "120"
 
     if not os.path.exists(audio_store):
@@ -118,7 +123,7 @@ def init_stream_process(stream_name, stream_url, model, db):
     )
     transcribe_thread = threading.Thread(
         target=transcribe_stream, 
-        args=(audio_store, stream_name, model, segment_duration, db),
+        args=(audio_store, stream_name, model, segment_duration),
         daemon=True
     )
 
@@ -134,7 +139,7 @@ if __name__ == "__main__":
     model = whisper.load_model(MODEL_TYPE)
 
     # create SQLite database if it doesn't exist
-    db_file = os.path.join("backend", "transcriptions.db")
+    db_file = "../backend/transcriptions.db"
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
     cursor.execute("""
@@ -151,4 +156,4 @@ if __name__ == "__main__":
     stream_url = "https://tunein.cdnstream1.com/2868_96.mp3"
     stream_name = "CNN" 
 
-    init_stream_process(stream_name, stream_url, model, cursor)
+    init_stream_process(stream_name, stream_url, model)

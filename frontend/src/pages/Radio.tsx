@@ -5,7 +5,6 @@ interface Transcription {
   id: number;
   radio_stream: string;
   start_time: string;
-  end_time: string;
   text: string;
 }
 
@@ -46,7 +45,6 @@ const Radio: React.FC = () => {
               <th style={{ border: '1px solid black', padding: '8px' }}>ID</th>
               <th style={{ border: '1px solid black', padding: '8px' }}>Radio Stream</th>
               <th style={{ border: '1px solid black', padding: '8px' }}>Start Time</th>
-              <th style={{ border: '1px solid black', padding: '8px' }}>End Time</th>
               <th style={{ border: '1px solid black', padding: '8px' }}>Text</th>
             </tr>
           </thead>
@@ -56,7 +54,6 @@ const Radio: React.FC = () => {
                 <td style={{ border: '1px solid black', padding: '8px' }}>{transcription.id}</td>
                 <td style={{ border: '1px solid black', padding: '8px' }}>{transcription.radio_stream}</td>
                 <td style={{ border: '1px solid black', padding: '8px' }}>{transcription.start_time}</td>
-                <td style={{ border: '1px solid black', padding: '8px' }}>{transcription.end_time}</td>
                 <td style={{ border: '1px solid black', padding: '8px' }}>{transcription.text}</td>
               </tr>
             ))}
