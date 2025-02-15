@@ -2,9 +2,12 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import whisper
 import os
+from routes import bp
 
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests for local dev, if needed
+
+app.register_blueprint(bp)
 
 # Load the Whisper model once at startup to avoid reloading on every request.
 # You can choose a model size: tiny, base, small, medium, large.
