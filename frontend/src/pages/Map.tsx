@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { HeatmapLayer } from 'react-leaflet-heatmap-layer-v3';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
@@ -61,6 +63,15 @@ export const Map: React.FC = () => {
     const sessionId = useRef<string>(crypto.randomUUID());
     const [dummyCount, setDummyCount] = useState<number>(0);
     const [submittedDummyCount, setSubmittedDummyCount] = useState<number>(0);
+    const [heatmapData, setHeatmapData] = useState<[number, number, number][]>([]);
+
+    const heatmapOptions = {
+      radius: 20,
+      blur: 20,
+      maxZoom: 18,
+      minOpacity: 0.5,
+      maxOpacity: 1,
+  };
 
     const getSessionColor = (sessionId: string): string => {
       const colorIndex = parseInt(sessionId, 16) % DOT_COLORS.length;
@@ -97,15 +108,23 @@ export const Map: React.FC = () => {
     // Function to fetch all sessions
     const fetchSessions = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
-        if (!response.ok) throw new Error('Failed to fetch sessions');
-        const data = await response.json();
-        setSessions(data);
+          const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
+          if (!response.ok) throw new Error('Failed to fetch sessions');
+          const data = await response.json();
+          setSessions(data);
+          
+          // Convert sessions to heatmap data
+          const heatData = data.map((session: Session) => [
+              session.position[0],
+              session.position[1],
+              session.isDummy ? 0.3 : 1  // Lower intensity for dummy users
+          ]);
+          setHeatmapData(heatData);
       } catch (error) {
-        console.error('Error fetching sessions:', error);
+          console.error('Error fetching sessions:', error);
       }
-    };
-        
+  };
+      
     useEffect(() => {
       // Fetch sessions periodically
       const sessionInterval = setInterval(fetchSessions, 2000);
@@ -248,6 +267,15 @@ export const Map: React.FC = () => {
                             className="map-tiles"
                             maxZoom={22}
                             minZoom={3}
+                        />
+                        <HeatmapLayer
+                            fitBoundsOnLoad
+                            fitBoundsOnUpdate
+                            points={heatmapData}
+                            longitudeExtractor={(point: [number, number, number]) => point[1]}
+                            latitudeExtractor={(point: [number, number, number]) => point[0]}
+                            intensityExtractor={(point: [number, number, number]) => point[2]}
+                            {...heatmapOptions}
                         />
                         {sessions.map((session) => (
                           <CircleMarker 
