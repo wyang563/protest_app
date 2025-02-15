@@ -3,6 +3,17 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaf
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
+const DOT_COLORS = [
+  '#3B82F6', // blue
+  '#10B981', // green
+  '#F59E0B', // yellow
+  '#EF4444', // red
+  '#8B5CF6', // purple
+  '#EC4899', // pink
+];
+
 // Custom style for the map container a
 const mapStyle = {
   height: '100%',
@@ -22,6 +33,10 @@ interface Session {
   id: string;
   position: [number, number];
   lastUpdate: number;
+  joinedAt: string;
+  colorIndex?: number;
+  isDummy: boolean;  // Make this required
+  ip?: string;
 }
 
 // This component handles map position updates
@@ -43,11 +58,22 @@ export const Map: React.FC = () => {
     const mapRef = useRef<L.Map | null>(null);
     const watchIdRef = useRef<number | null>(null);
     const sessionId = useRef<string>(crypto.randomUUID());
+    const [dummyCount, setDummyCount] = useState<number>(0);
+    const [submittedDummyCount, setSubmittedDummyCount] = useState<number>(0);
+
+    const getSessionColor = (sessionId: string): string => {
+      const colorIndex = parseInt(sessionId, 16) % DOT_COLORS.length;
+      return DOT_COLORS[colorIndex];
+    };
+
+    const handleDummyCountSubmit = () => {
+      setSubmittedDummyCount(dummyCount);
+    };
 
     // Function to update server with position
     const updateServerPosition = async (pos: [number, number]) => {
       try {
-        const response = await fetch('http://localhost:5000/api/location', {
+        const response = await fetch(`${API_BASE_URL}/location`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -56,6 +82,7 @@ export const Map: React.FC = () => {
             sessionId: sessionId.current,
             position: pos,
             timestamp: Date.now(),
+            joinedAt: new Date().toISOString(), // Add join time
           }),
         });
         if (!response.ok) throw new Error('Failed to update location');
@@ -63,11 +90,11 @@ export const Map: React.FC = () => {
         console.error('Error updating location:', error);
       }
     };
-
+    
     // Function to fetch all sessions
     const fetchSessions = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/sessions');
+        const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${submittedDummyCount}`);
         if (!response.ok) throw new Error('Failed to fetch sessions');
         const data = await response.json();
         setSessions(data);
@@ -75,7 +102,7 @@ export const Map: React.FC = () => {
         console.error('Error fetching sessions:', error);
       }
     };
-
+    
     useEffect(() => {
       // Fetch sessions periodically
       const sessionInterval = setInterval(fetchSessions, 2000);
@@ -167,6 +194,29 @@ export const Map: React.FC = () => {
               >
                 {isTracking ? 'Stop Tracking' : 'Start Tracking'}
               </button>
+              <div className="flex items-center gap-2">
+                <label htmlFor="dummyCount" className="text-sm font-medium">
+                  Dummy Users:
+                </label>
+                <input
+                  id="dummyCount"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  value={dummyCount}
+                  onChange={(e) => setDummyCount(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-20 px-2 py-1 border rounded-lg"
+                />
+                <button
+                  onClick={handleDummyCountSubmit}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg
+                            transition-colors duration-200 ease-in-out transform hover:scale-105 
+                            active:scale-95 shadow-lg focus:outline-none focus:ring-2 
+                            focus:ring-purple-500 focus:ring-opacity-50"
+                >
+                  Add Dummies
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -197,16 +247,30 @@ export const Map: React.FC = () => {
                             minZoom={3}
                         />
                         {sessions.map((session) => (
-                            <CircleMarker 
-                                key={session.id}
-                                center={session.position}
-                                {...circleMarkerStyle}
-                                color={session.id === sessionId.current ? '#3B82F6' : '#10B981'}
-                            >
-                                <Popup>
-                                    {session.id === sessionId.current ? 'You' : 'Other Protester'}
-                                </Popup>
-                            </CircleMarker>
+                          <CircleMarker 
+                          key={session.id}
+                          center={session.position}
+                          {...circleMarkerStyle}
+                          color={session.isDummy ? '#999999' : getSessionColor(session.id)}
+                          radius={session.id === sessionId.current ? 10 : 8}
+                          opacity={session.isDummy ? 0.5 : 1}
+                        >
+                            <Popup>
+                              <div className="p-2">
+                                <h3 className="font-bold mb-2">
+                                  {session.isDummy ? 'Simulated User' : 
+                                  session.id === sessionId.current ? 'You' : 'Other Protester'}
+                                </h3>
+                                <ul className="text-sm">
+                                  <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
+                                  <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
+                                  <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
+                                  <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
+                                  {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
+                                </ul>
+                              </div>
+                            </Popup>
+                          </CircleMarker>
                         ))}
                     </MapContainer>
                 </div>

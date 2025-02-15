@@ -32,16 +32,27 @@ def update_location():
     session_id = data.get('sessionId')
     position = data.get('position')
     timestamp = data.get('timestamp')
+    joined_at = data.get('joinedAt', datetime.now().isoformat())
 
     if not all([session_id, position, timestamp]):
         return jsonify({'error': 'Missing required fields'}), 400
 
     with session_lock:
-        sessions[session_id] = {
-            'id': session_id,
-            'position': position,
-            'timestamp': timestamp
-        }
+        # If this is a new session, store the original join time
+        if session_id not in sessions:
+            sessions[session_id] = {
+                'id': session_id,
+                'position': position,
+                'timestamp': timestamp,
+                'joinedAt': joined_at,
+                'ip': request.remote_addr
+            }
+        else:
+            # Update only position and timestamp for existing sessions
+            sessions[session_id].update({
+                'position': position,
+                'timestamp': timestamp
+            })
 
     return jsonify({'success': True})
 
@@ -50,5 +61,8 @@ def get_sessions():
     with session_lock:
         return jsonify([{
             'id': session['id'],
-            'position': session['position']
+            'position': session['position'],
+            'lastUpdate': session['timestamp'],
+            'joinedAt': session['joinedAt'],
+            'ip': session['ip']
         } for session in sessions.values()])
