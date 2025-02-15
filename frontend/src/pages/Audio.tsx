@@ -25,7 +25,7 @@ const Audio: React.FC = () => {
       formData.append('audio_file', file);
 
       // Use relative path for API calls
-      const response = await fetch(`${API_BASE_URL}/transcribe`, {
+      const response = await fetch(`${API_BASE_URL}/transcribe_file`, {
         method: 'POST',
         body: formData,
       });

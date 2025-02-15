@@ -4,9 +4,8 @@
 /frontend/node_modules
 /.pnp
 .pnp.js
-/backend/venv
-/backend/.venv
-/backend/audio_store
+/venv
+/radio_stream/audio_store
 
 # testing
 /frontend/coverage
@@ -20,6 +19,7 @@
 .env.development.local
 .env.test.local
 .env.production.local
+/radio_stream/__pycache__
 
 npm-debug.log*
 yarn-debug.log*
