@@ -6,6 +6,7 @@
 .pnp.js
 /backend/venv
 /backend/.venv
+/backend/audio_store
 
 # testing
 /frontend/coverage
