@@ -1,5 +1,8 @@
 import React, { useState, ChangeEvent } from 'react';
 
+// Define the API base URL based on environment
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
 const Audio: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [transcription, setTranscription] = useState<string>('');
@@ -21,13 +24,16 @@ const Audio: React.FC = () => {
       const formData = new FormData();
       formData.append('audio_file', file);
 
-      // Adjust your endpoint URL if necessary
-      const response = await fetch('http://localhost:5000/api/transcribe', {
+      // Use relative path for API calls
+      const response = await fetch(`${API_BASE_URL}/transcribe`, {
         method: 'POST',
         body: formData,
       });
 
-      // You can define a type/interface for your JSON response if you want
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
       setTranscription(data.transcription || 'No transcription was returned');
     } catch (error) {

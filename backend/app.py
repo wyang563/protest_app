@@ -1,11 +1,11 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import whisper
 import os
 from routes import bp
 
 app = Flask(__name__)
-CORS(app)  # Allow cross-origin requests for local dev, if needed
+CORS(app, origins=["https://protest.morelos.dev", "http://localhost:3000"])
 
 app.register_blueprint(bp)
 
@@ -15,6 +15,7 @@ MODEL_TYPE = "base"
 model = whisper.load_model(MODEL_TYPE)
 
 @app.route('/api/transcribe', methods=['POST'])
+@cross_origin(origin="https://protest.morelos.dev")
 def transcribe_audio():
     """
     Expects an audio file in the POST request, e.g., form-data with a field "audio_file".
