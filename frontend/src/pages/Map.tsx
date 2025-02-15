@@ -35,8 +35,8 @@ interface Session {
   lastUpdate: number;
   joinedAt: string;
   colorIndex?: number;
-  isDummy?: boolean;  // Add this property
-  ip?: string;       // Add this for consistency with backend
+  isDummy: boolean;  // Make this required
+  ip?: string;
 }
 
 // This component handles map position updates
@@ -59,10 +59,15 @@ export const Map: React.FC = () => {
     const watchIdRef = useRef<number | null>(null);
     const sessionId = useRef<string>(crypto.randomUUID());
     const [dummyCount, setDummyCount] = useState<number>(0);
+    const [submittedDummyCount, setSubmittedDummyCount] = useState<number>(0);
 
     const getSessionColor = (sessionId: string): string => {
       const colorIndex = parseInt(sessionId, 16) % DOT_COLORS.length;
       return DOT_COLORS[colorIndex];
+    };
+
+    const handleDummyCountSubmit = () => {
+      setSubmittedDummyCount(dummyCount);
     };
 
     // Function to update server with position
@@ -89,7 +94,7 @@ export const Map: React.FC = () => {
     // Function to fetch all sessions
     const fetchSessions = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${dummyCount}`);
+        const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${submittedDummyCount}`);
         if (!response.ok) throw new Error('Failed to fetch sessions');
         const data = await response.json();
         setSessions(data);
@@ -97,7 +102,7 @@ export const Map: React.FC = () => {
         console.error('Error fetching sessions:', error);
       }
     };
-
+    
     useEffect(() => {
       // Fetch sessions periodically
       const sessionInterval = setInterval(fetchSessions, 2000);
@@ -202,6 +207,15 @@ export const Map: React.FC = () => {
                   onChange={(e) => setDummyCount(Math.max(0, parseInt(e.target.value) || 0))}
                   className="w-20 px-2 py-1 border rounded-lg"
                 />
+                <button
+                  onClick={handleDummyCountSubmit}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg
+                            transition-colors duration-200 ease-in-out transform hover:scale-105 
+                            active:scale-95 shadow-lg focus:outline-none focus:ring-2 
+                            focus:ring-purple-500 focus:ring-opacity-50"
+                >
+                  Add Dummies
+                </button>
               </div>
             </div>
           </div>
