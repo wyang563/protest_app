@@ -68,8 +68,10 @@ export const Map: React.FC = () => {
 
     const handleDummyCountSubmit = () => {
       setSubmittedDummyCount(dummyCount);
+      // Force an immediate fetch of sessions with new dummy count
+      fetchSessions();
     };
-
+    
     // Function to update server with position
     const updateServerPosition = async (pos: [number, number]) => {
       try {
