@@ -37,47 +37,48 @@ export const Map: React.FC = () => {
     const watchIdRef = useRef<number | null>(null);
   
     useEffect(() => {
-      if ('geolocation' in navigator) {
-        // Get initial position
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-            setPosition(newPosition);
-            console.log('Initial location acquired:', pos.coords);
-          },
-          (error) => {
-            setLocationError(error.message);
-            console.error('Location error:', error);
-          }
-        );
-  
-        // Set up periodic location updates
-        const intervalId = setInterval(() => {
-          if (isTracking) {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-                setPosition(newPosition);
-                console.log('Location updated:', pos.coords);
-              },
-              (error) => {
-                setLocationError(error.message);
-                console.error('Location update error:', error);
-              }
-            );
-          }
-        }, 5000); // Update every 5 seconds
-  
-        // Cleanup function
-        return () => {
-          clearInterval(intervalId);
-          if (watchIdRef.current) {
-            navigator.geolocation.clearWatch(watchIdRef.current);
-          }
-        };
-      }
-    }, [isTracking]);
-  
+        if ('geolocation' in navigator) {
+          // Get initial position
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+              setPosition(newPosition);
+              console.log('Initial location acquired:', pos.coords);
+            },
+            (error) => {
+              setLocationError(error.message);
+              console.error('Location error:', error);
+            }
+          );
+      
+          // Set up periodic location updates
+          const intervalId = setInterval(() => {
+            if (isTracking) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+                  setPosition(newPosition);
+                  console.log('Location updated:', pos.coords);
+                },
+                (error) => {
+                  setLocationError(error.message);
+                  console.error('Location update error:', error);
+                }
+              );
+            }
+          }, 5000); // Update every 5 seconds
+      
+          // Cleanup function
+          return () => {
+            clearInterval(intervalId);
+            const watchId = watchIdRef.current;
+            if (watchId) {
+              navigator.geolocation.clearWatch(watchId);
+            }
+          };
+        }
+      }, [isTracking]);
+        
     const handleCenterMap = () => {
       if (mapRef.current) {
         mapRef.current.setView(position, 15);
