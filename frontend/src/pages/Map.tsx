@@ -3,6 +3,8 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaf
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
 // Custom style for the map container a
 const mapStyle = {
   height: '100%',
@@ -47,7 +49,7 @@ export const Map: React.FC = () => {
     // Function to update server with position
     const updateServerPosition = async (pos: [number, number]) => {
       try {
-        const response = await fetch('http://localhost:5000/api/location', {
+        const response = await fetch(`${API_BASE_URL}/location`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -63,11 +65,11 @@ export const Map: React.FC = () => {
         console.error('Error updating location:', error);
       }
     };
-
+    
     // Function to fetch all sessions
     const fetchSessions = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/sessions');
+        const response = await fetch(`${API_BASE_URL}/sessions`);
         if (!response.ok) throw new Error('Failed to fetch sessions');
         const data = await response.json();
         setSessions(data);
@@ -75,7 +77,7 @@ export const Map: React.FC = () => {
         console.error('Error fetching sessions:', error);
       }
     };
-
+    
     useEffect(() => {
       // Fetch sessions periodically
       const sessionInterval = setInterval(fetchSessions, 2000);
