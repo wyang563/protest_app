@@ -2,18 +2,19 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import whisper
 import os
-from radio_stream.radio_listsener import transcribe_stream
-import threading
+from routes import bp
 
 app = Flask(__name__)
-CORS(app, origins=["https://protest.morelos.dev", "http://localhost:3000"])  # Allow cross-origin requests for local dev, if needed
+CORS(app, origins=["https://protest.morelos.dev", "http://localhost:3000"])
+
+app.register_blueprint(bp)
 
 # Load the Whisper model once at startup to avoid reloading on every request.
 # You can choose a model size: tiny, base, small, medium, large.
 MODEL_TYPE = "base"
-model = whisper.load_model("base")
+model = whisper.load_model(MODEL_TYPE)
 
-@app.route('/api/transcribe_file', methods=['POST'])
+@app.route('/api/transcribe', methods=['POST'])
 @cross_origin(origin="https://protest.morelos.dev")
 def transcribe_audio():
     """
@@ -43,20 +44,4 @@ def transcribe_audio():
     return jsonify({"transcription": text})
 
 if __name__ == '__main__':
-    # Run on port 5000 so React (port 3000) can access it
-    
-    # CONSTANTS FOR PARAMTETRIZING THE STREAM
-    AUDIO_STORE = "audio_store"
-    STATION_SEARCH_URL = "https://de1.api.radio-browser.info/json/stations"
-    SEARCH_PARAMS = {
-        'countrycode': 'US',  # Adjust the country code as needed
-        'limit': 10           # Limit the results to 10 stations
-    }
-    stream_listener_thread = threading.Thread(
-        target=transcribe_stream, 
-        args=(AUDIO_STORE, SEARCH_PARAMS, STATION_SEARCH_URL, "120"),
-        daemon=True
-    )
-    stream_listener_thread.start()
     app.run(host='0.0.0.0', port=5001, debug=True)
-    
