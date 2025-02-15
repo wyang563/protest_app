@@ -1,6 +1,7 @@
-import React, { useState, ChangeEvent } from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { Map } from './pages/Map';
+import 'leaflet/dist/leaflet.css';
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -39,44 +40,14 @@ function App() {
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> to customize your app.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-
-      <main style={{ marginTop: '2rem' }}>
-        {/* File input for audio selection */}
-        <input
-          type="file"
-          accept="audio/*"
-          onChange={handleFileChange}
-          style={{ marginBottom: '1rem' }}
-        />
-
-        {/* Button to initiate the transcription request */}
-        <button onClick={handleTranscribe}>
-          Transcribe
-        </button>
-
-        {/* Display transcription result if available */}
-        {transcription && (
-          <p style={{ marginTop: '1rem' }}>
-            <strong>Transcription:</strong> {transcription}
-          </p>
-        )}
-      </main>
-    </div>
+    <Router>
+      <div className="App">
+        <Routes>
+          <Route path="/" element={<Navigate to="/map" replace />} />
+          <Route path="/map" element={<Map />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
