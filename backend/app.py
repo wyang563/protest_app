@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import whisper
 import os
-from radio_stream.radio_listsener import transcribe_stream
 import threading
 
 app = Flask(__name__)
@@ -44,19 +43,5 @@ def transcribe_audio():
 
 if __name__ == '__main__':
     # Run on port 5000 so React (port 3000) can access it
-    
-    # CONSTANTS FOR PARAMTETRIZING THE STREAM
-    AUDIO_STORE = "audio_store"
-    STATION_SEARCH_URL = "https://de1.api.radio-browser.info/json/stations"
-    SEARCH_PARAMS = {
-        'countrycode': 'US',  # Adjust the country code as needed
-        'limit': 10           # Limit the results to 10 stations
-    }
-    stream_listener_thread = threading.Thread(
-        target=transcribe_stream, 
-        args=(AUDIO_STORE, SEARCH_PARAMS, STATION_SEARCH_URL, "120"),
-        daemon=True
-    )
-    stream_listener_thread.start()
     app.run(host='0.0.0.0', port=5001, debug=True)
     
