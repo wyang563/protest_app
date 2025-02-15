@@ -34,8 +34,9 @@ interface Session {
   position: [number, number];
   lastUpdate: number;
   joinedAt: string;
-  // Add color index to track user's assigned color
   colorIndex?: number;
+  isDummy?: boolean;  // Add this property
+  ip?: string;       // Add this for consistency with backend
 }
 
 // This component handles map position updates
@@ -57,6 +58,7 @@ export const Map: React.FC = () => {
     const mapRef = useRef<L.Map | null>(null);
     const watchIdRef = useRef<number | null>(null);
     const sessionId = useRef<string>(crypto.randomUUID());
+    const [dummyCount, setDummyCount] = useState<number>(0);
 
     const getSessionColor = (sessionId: string): string => {
       const colorIndex = parseInt(sessionId, 16) % DOT_COLORS.length;
@@ -87,7 +89,7 @@ export const Map: React.FC = () => {
     // Function to fetch all sessions
     const fetchSessions = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/sessions`);
+        const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${dummyCount}`);
         if (!response.ok) throw new Error('Failed to fetch sessions');
         const data = await response.json();
         setSessions(data);
@@ -187,6 +189,20 @@ export const Map: React.FC = () => {
               >
                 {isTracking ? 'Stop Tracking' : 'Start Tracking'}
               </button>
+              <div className="flex items-center gap-2">
+                <label htmlFor="dummyCount" className="text-sm font-medium">
+                  Dummy Users:
+                </label>
+                <input
+                  id="dummyCount"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  value={dummyCount}
+                  onChange={(e) => setDummyCount(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-20 px-2 py-1 border rounded-lg"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -218,22 +234,25 @@ export const Map: React.FC = () => {
                         />
                         {sessions.map((session) => (
                           <CircleMarker 
-                            key={session.id}
-                            center={session.position}
-                            {...circleMarkerStyle}
-                            color={getSessionColor(session.id)}
-                            radius={session.id === sessionId.current ? 10 : 8}
-                          >
+                          key={session.id}
+                          center={session.position}
+                          {...circleMarkerStyle}
+                          color={session.isDummy ? '#999999' : getSessionColor(session.id)}
+                          radius={session.id === sessionId.current ? 10 : 8}
+                          opacity={session.isDummy ? 0.5 : 1}
+                        >
                             <Popup>
                               <div className="p-2">
                                 <h3 className="font-bold mb-2">
-                                  {session.id === sessionId.current ? 'You' : 'Other Protester'}
+                                  {session.isDummy ? 'Simulated User' : 
+                                  session.id === sessionId.current ? 'You' : 'Other Protester'}
                                 </h3>
                                 <ul className="text-sm">
                                   <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
                                   <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
                                   <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
                                   <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
+                                  {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
                                 </ul>
                               </div>
                             </Popup>
