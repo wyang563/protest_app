@@ -11,7 +11,8 @@ app.register_blueprint(bp)
 
 # Load the Whisper model once at startup to avoid reloading on every request.
 # You can choose a model size: tiny, base, small, medium, large.
-model = whisper.load_model("tiny")
+MODEL_TYPE = "base"
+model = whisper.load_model(MODEL_TYPE)
 
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe_audio():
