@@ -680,11 +680,10 @@ export const Map: React.FC = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
-      {/* Main Container - Flex column on mobile, row on desktop */}
-      <div className="flex flex-col lg:flex-row h-screen">
+    <div className="min-h-screen bg-gray-900 text-gray-100 fixed inset-0 flex">
+      <div className="flex flex-col lg:flex-row w-full h-full">
         {/* Controls Section - Full width on mobile, sidebar on desktop */}
-        <div className="w-full lg:w-96 flex-none overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">          {/* User Info & Logout - Now as a normal block */}
+        <div className="w-full lg:w-96 flex-shrink-0 overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">
           <div className="bg-gray-700 p-4 rounded-lg">
             {user && (
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -837,8 +836,9 @@ export const Map: React.FC = () => {
           </div>
 
         {/* Map Section - Scrollable on mobile, fixed on desktop */}
-        <div className="flex-1 p-4 order-2 lg:order-1 min-h-[60vh] lg:h-full">
-          <div className="h-full rounded-lg overflow-hidden shadow-2xl relative map-container">
+        <div className="flex-1 p-4 order-2 lg:order-1 relative">
+          <div className="absolute inset-0 m-4">
+            <div className="h-full rounded-lg overflow-hidden shadow-2xl">
             <MapContainer 
               center={position} 
               zoom={DEFAULT_ZOOM}
@@ -960,6 +960,7 @@ export const Map: React.FC = () => {
                 </Marker>
               ))}
             </MapContainer>
+            </div>
           </div>
         </div>
       </div>

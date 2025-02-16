@@ -80,6 +80,18 @@ def cleanup_old_sessions():
 cleanup_thread = threading.Thread(target=cleanup_old_sessions, daemon=True)
 cleanup_thread.start()
 
+@routes_bp.route('/api/activeConnections', methods=['GET'])
+def get_active_connections():
+    """Get count of non-dummy active sessions in last 30 seconds"""
+    current_time = time.time() * 1000
+    with session_lock:
+        active_count = sum(
+            1 for session in active_sessions.values()
+            if not session.get('isDummy', False)
+            and current_time - session.get('timestamp', 0) < 30000
+        )
+    return jsonify({'active': active_count})
+
 @routes_bp.route('/api/location', methods=['POST'])
 def update_location():
     data = request.json
