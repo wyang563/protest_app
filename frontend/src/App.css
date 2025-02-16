@@ -44,3 +44,11 @@
 .leaflet-control-attribution {
   display: none !important;
 }
+
+.leaflet-container {
+  background: #1f2937;
+}
+
+.map-tiles {
+  filter: brightness(0.8) contrast(115%) saturate(90%);
+}
