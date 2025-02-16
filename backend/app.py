@@ -1,10 +1,8 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
-from datetime import timedelta
 import whisper
 import os
-from auth import auth_bp, init_auth_db
-from routes import routes_bp
+from routes import bp
 import sqlite3
 
 app = Flask(__name__) # here
@@ -164,4 +162,19 @@ def transcribe_audio():
     return jsonify({"transcription": text})
 
 if __name__ == '__main__':
+    # Create database if it doesn't already exist
+    db_file = "transcriptions.db"
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS transcriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        radio_stream TEXT,
+        start_time TEXT,
+        text TEXT
+        )
+    """)
+    conn.commit()
+
+    # Run on port 5000 so React (port 3000) can access it
     app.run(host='0.0.0.0', port=5001, debug=True)
