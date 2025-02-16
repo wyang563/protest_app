@@ -9,14 +9,27 @@ interface Transcription {
   text: string;
 }
 
-function getSentiment(radioStream: string): string {
-  if (radioStream.toLowerCase().includes("a")) return "stressed";
-  if (radioStream.toLowerCase().includes("b")) return "fleeing";
-  if (radioStream.toLowerCase().includes("c")) return "needs rescue";
-  return "advancing";
+interface SentimentResult {
+  label: string;
+  score: number;
 }
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
+async function getSentiment(radioStream: string): Promise<SentimentResult> {
+  try {
+    if (!radioStream) return {label: "empty input!", score: 0};
+    else {
+      const response = await axios.get(`${API_BASE_URL}/sentiment_analysis`, {
+        params: { text: radioStream }
+      })
+      return {label: response.data.label, score: response.data.score}; 
+    }
+  } catch (error) {
+    console.error("Error fetching sentiment:", error);
+    return {label: "error", score: 0};
+  } 
+}
 
 const Radio: React.FC = () => {
   const [sources, setSources] = useState<string[]>([]);
@@ -78,7 +91,15 @@ const Radio: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSource]);
 
-  const sentiment = getSentiment(selectedSource);
+  const [sentiment, setSentiment] = useState<SentimentResult>({ label: '', score: 0 });
+
+  useEffect(() => {
+    const fetchSentiment = async () => {
+      const sentimentResult = await getSentiment(selectedSource);
+      setSentiment(sentimentResult);
+    };
+    fetchSentiment();
+  }, [selectedSource]);
 
   return (
     <div className="container mx-auto p-4">
@@ -174,17 +195,20 @@ const Radio: React.FC = () => {
         <div className="col-span-1">
           <div className="p-4 bg-yellow-100 rounded shadow">
             <h4 className="text-xl font-bold mb-2">Sentiment</h4>
-            {sentiment === "stressed" && (
-              <p className="text-red-600 font-bold">Stressed</p>
+            {sentiment.label === "need supplies" && (
+              <p className="text-blue-600 font-bold">Stressed (Confidence: {sentiment.score.toFixed(2)})</p>
             )}
-            {sentiment === "fleeing" && (
-              <p className="text-orange-600 font-bold">Fleeing</p>
+            {sentiment.label === "fleeing" && (
+              <p className="text-orange-600 font-bold">Fleeing (Confidence: {sentiment.score.toFixed(2)})</p>
             )}
-            {sentiment === "needs rescue" && (
-              <p className="text-blue-600 font-bold">Needs Rescue</p>
+            {sentiment.label === "medical emergency" && (
+              <p className="text-red-600 font-bold">Needs Rescue (Confidence: {sentiment.score.toFixed(2)})</p>
             )}
-            {sentiment === "advancing" && (
-              <p className="text-green-600 font-bold">Advancing</p>
+            {sentiment.label === "advancing" && (
+              <p className="text-green-600 font-bold">Advancing (Confidence: {sentiment.score.toFixed(2)})</p>
+            )}
+            {sentiment.label === "error" && (
+              <p className="text-red-600 font-bold">Error fetching sentiment</p>
             )}
           </div>
         </div>
