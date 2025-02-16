@@ -690,95 +690,42 @@ export const Map: React.FC = () => {
   const toggleTracking = () => {
     setIsTracking(!isTracking);
   };
-  
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 fixed inset-0 flex">
       <div className="flex flex-col lg:flex-row w-full h-full">
-        {/* Controls Section - Full width on mobile, sidebar on desktop */}
+        {/* Controls Section */}
         <div className="w-full lg:w-96 flex-shrink-0 overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">
-          <div className="bg-gray-700 p-4 rounded-lg">
+          {/* Top Bar with Login Info and Network Status */}
+          <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-lg">
+            {/* Login Info - Compact */}
             {user && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <span className="text-sm">
-                  <span className="text-gray-400">Logged in as:</span>{" "}
-                  <span className="font-semibold">{user.username}</span>
-                </span>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-400">{user.username}</span>
                 <button
                   onClick={handleLogout}
-                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm transition-colors w-full sm:w-auto"
+                  className="bg-red-500/80 hover:bg-red-600 text-white px-2 py-0.5 rounded-sm text-xs"
                 >
                   Logout
                 </button>
               </div>
             )}
-          </div>
   
-          {/* Connection Counter */}
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold mb-2">Network Status</h3>
-            <div className="flex items-center gap-2">
-              <div className={`h-2 w-2 rounded-full ${
+            {/* Network Status - Compact */}
+            <div className="flex items-center gap-2 text-xs">
+              <div className={`h-1.5 w-1.5 rounded-full ${
                 connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'
               }`}></div>
-              <span className="text-sm">
-                Active Connections: <span className="font-bold">{activeConnections}</span>
+              <span className="text-gray-300">
+                {activeConnections} active
               </span>
             </div>
-          </div>  
-
-          {/* Map & Location Controls */}
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold mb-3">Map & Location Controls</h3>
-            {locationError ? (
-              <p className="text-red-400 text-sm mb-3">{locationError}</p>
-            ) : (
-              <p className="text-green-400 text-sm mb-3">
-                Location: {position[0].toFixed(4)}, {position[1].toFixed(4)}
-              </p>
-            )}
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  onClick={handleCenterMap}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg
-                    transition-colors duration-200 flex items-center justify-center gap-2"
-                >
-                  <span>Center Map</span>
-                </button>
-                <button
-                  onClick={toggleTracking}
-                  className={`flex-1 ${
-                    isTracking ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-                  } text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2`}
-                >
-                  {isTracking ? 'Stop Tracking' : 'Start Tracking'}
-                </button>
-              </div>
-              
-              {/* Heatmap Toggle */}
-              <div className="flex items-center justify-between gap-2 mt-2">
-                <span className="text-sm text-gray-300">Heatmap Overlay</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={showHeatmap}
-                    onChange={(e) => setShowHeatmap(e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 
-                    peer-focus:ring-blue-300 rounded-full peer 
-                    peer-checked:after:translate-x-full peer-checked:after:border-white 
-                    after:content-[''] after:absolute after:top-[2px] after:left-[2px] 
-                    after:bg-white after:border-gray-300 after:border after:rounded-full 
-                    after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-            </div>
-          </div>  
-          {/* Protester Controls */}
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold mb-3">Protester Controls</h3>
-            <div className="grid grid-cols-2 gap-2">
+          </div>
+  
+          {/* Protester Controls - Main Focus */}
+          <div className="bg-gray-700 p-4 rounded-lg border-2 border-blue-500/20">
+            <h3 className="text-lg font-semibold mb-3 text-blue-100">Protester Controls</h3>
+            <div className="grid grid-cols-2 gap-3">
               {Object.entries(ALERT_CONFIGS).map(([type, config]) => (
                 <button
                   key={type}
@@ -790,103 +737,133 @@ export const Map: React.FC = () => {
                     type === 'medical' ? 'bg-red-600 hover:bg-red-700' :
                     type === 'arrest' ? 'bg-yellow-600 hover:bg-yellow-700' :
                     'bg-red-800 hover:bg-red-900'
-                  } text-white p-3 rounded-lg flex items-center justify-center gap-2 transition-colors`}
+                  } text-white p-4 rounded-lg flex items-center justify-center gap-2 transition-colors`}
                   title={config.tooltip}
                 >
-                  <img src={config.icon} alt={type} className="w-5 h-5" />
-                  <span className="text-sm">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                  <img src={config.icon} alt={type} className="w-6 h-6" />
+                  <span className="text-sm font-medium">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
                 </button>
               ))}
             </div>
             {activeAlert && (
               <button
                 onClick={handleClearAlert}
-                className="w-full mt-2 bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg
+                className="w-full mt-3 bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg
                   flex items-center justify-center gap-2 transition-colors"
-                title="Clear Alert"
               >
                 Clear Alert
               </button>
             )}
           </div>
   
-          {/* Simulation Controls */}
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold mb-3">Simulation Development</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Dummy Controls */}
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <label htmlFor="dummyCount" className="text-xs text-gray-300 whitespace-nowrap">
-                    Dummy Users:
-                  </label>
+          {/* Map & Location Controls - Secondary */}
+          <div className="bg-gray-700/90 p-4 rounded-lg">
+            <h3 className="text-md font-medium mb-2 text-gray-200">Map Controls</h3>
+            {locationError ? (
+              <p className="text-red-400 text-xs mb-2">{locationError}</p>
+            ) : (
+              <p className="text-green-400 text-xs mb-2">
+                Location: {position[0].toFixed(4)}, {position[1].toFixed(4)}
+              </p>
+            )}
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCenterMap}
+                  className="flex-1 bg-blue-600/80 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md
+                    transition-colors duration-200 text-sm"
+                >
+                  Center Map
+                </button>
+                <button
+                  onClick={toggleTracking}
+                  className={`flex-1 text-sm ${
+                    isTracking ? 'bg-red-600/80 hover:bg-red-700' : 'bg-green-600/80 hover:bg-green-700'
+                  } text-white px-3 py-1.5 rounded-md transition-colors duration-200`}
+                >
+                  {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+                </button>
+              </div>
+              
+              {/* Heatmap Toggle */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-300">Heatmap Overlay</span>
+                <label className="relative inline-flex items-center cursor-pointer">
                   <input
-                    id="dummyCount"
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={showHeatmap}
+                    onChange={(e) => setShowHeatmap(e.target.checked)}
+                  />
+                  <div className="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full 
+                    after:content-[''] after:absolute after:top-[2px] after:left-[2px] 
+                    after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all 
+                    peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+            </div>
+          </div>
+  
+          {/* Simulation Development - De-emphasized */}
+          <div className="bg-gray-700/50 p-3 rounded-lg">
+            <h3 className="text-sm font-medium mb-2 text-gray-400">Development Tools</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  <input
                     type="number"
                     min="0"
                     max="1000"
                     value={dummyCount}
                     onChange={(e) => setDummyCount(e.target.value)}
-                    className="w-16 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white text-xs"
+                    className="w-16 px-2 py-0.5 rounded bg-gray-600/50 border border-gray-500/50 text-gray-300 text-xs"
                   />
+                  <button
+                    onClick={handleDummyCountSubmit}
+                    className="bg-purple-600/50 hover:bg-purple-700/50 text-gray-200 px-2 py-0.5 rounded text-xs"
+                  >
+                    Add Dummies
+                  </button>
                 </div>
-                <button
-                  onClick={handleDummyCountSubmit}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg
-                    transition-colors duration-200 flex items-center justify-center text-xs"
-                >
-                  Add Dummies
-                </button>
               </div>
-
-              {/* Alert Simulation Controls */}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1">
                 <button
                   onClick={runAlertSimulation}
-                  disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
-                  className={`w-full ${
-                    simulationConfig.isRunning 
-                      ? 'bg-gray-500 cursor-not-allowed' 
-                      : 'bg-green-600 hover:bg-green-700'
-                  } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
+                  disabled={simulationConfig.isRunning}
+                  className="text-xs bg-green-600/50 hover:bg-green-700/50 text-gray-200 px-2 py-1 rounded"
                 >
-                  {simulationConfig.isRunning ? 'Running...' : 'Random Simulation'}
+                  Random Sim
                 </button>
-                
                 <button
                   onClick={runClusterSimulation}
-                  disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
-                  className={`w-full ${
-                    simulationConfig.isRunning 
-                      ? 'bg-gray-500 cursor-not-allowed' 
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
+                  disabled={simulationConfig.isRunning}
+                  className="text-xs bg-blue-600/50 hover:bg-blue-700/50 text-gray-200 px-2 py-1 rounded"
                 >
-                  {simulationConfig.isRunning ? 'Running...' : 'Cluster Simulation'}
+                  Cluster Sim
                 </button>
-              </div>
               </div>
             </div>
           </div>
-
-        {/* Map Section - Scrollable on mobile, fixed on desktop */}
+        </div>
+  
+        {/* Map Section */}
         <div className="flex-1 p-4 order-2 lg:order-1 relative">
           <div className="absolute inset-0 m-4">
             <div className="h-full rounded-lg overflow-hidden shadow-2xl">
-            <MapContainer 
-              center={position} 
-              zoom={DEFAULT_ZOOM}
-              style={mapStyle}
-              ref={mapRef}
-              zoomControl={true}
-              attributionControl={false}
-              dragging={true}
-              scrollWheelZoom={true}
-              doubleClickZoom={true}
-              touchZoom={true}
-              tap={true}
-              className="z-0"
-            >
+              <MapContainer 
+                center={position} 
+                zoom={DEFAULT_ZOOM}
+                style={mapStyle}
+                ref={mapRef}
+                zoomControl={true}
+                attributionControl={false}
+                dragging={true}
+                scrollWheelZoom={true}
+                doubleClickZoom={true}
+                touchZoom={true}
+                tap={true}
+                className="z-0 h-full"
+              >
               <TileLayer
                 url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
                 className="map-tiles"
@@ -996,10 +973,321 @@ export const Map: React.FC = () => {
                 </Marker>
               ))}
             </MapContainer>
-            </div>
           </div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
+  // return (
+  //   <div className="min-h-screen bg-gray-900 text-gray-100 fixed inset-0 flex">
+  //     <div className="flex flex-col lg:flex-row w-full h-full">
+  //       {/* Controls Section - Full width on mobile, sidebar on desktop */}
+  //       <div className="w-full lg:w-96 flex-shrink-0 overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">
+  //         <div className="bg-gray-700 p-4 rounded-lg">
+  //           {user && (
+  //             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+  //               <span className="text-sm">
+  //                 <span className="text-gray-400">Logged in as:</span>{" "}
+  //                 <span className="font-semibold">{user.username}</span>
+  //               </span>
+  //               <button
+  //                 onClick={handleLogout}
+  //                 className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm transition-colors w-full sm:w-auto"
+  //               >
+  //                 Logout
+  //               </button>
+  //             </div>
+  //           )}
+  //         </div>
+  
+  //         {/* Connection Counter */}
+  //         <div className="bg-gray-700 p-4 rounded-lg">
+  //           <h3 className="text-lg font-semibold mb-2">Network Status</h3>
+  //           <div className="flex items-center gap-2">
+  //             <div className={`h-2 w-2 rounded-full ${
+  //               connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'
+  //             }`}></div>
+  //             <span className="text-sm">
+  //               Active Connections: <span className="font-bold">{activeConnections}</span>
+  //             </span>
+  //           </div>
+  //         </div>  
+
+  //         {/* Map & Location Controls */}
+  //         <div className="bg-gray-700 p-4 rounded-lg">
+  //           <h3 className="text-lg font-semibold mb-3">Map & Location Controls</h3>
+  //           {locationError ? (
+  //             <p className="text-red-400 text-sm mb-3">{locationError}</p>
+  //           ) : (
+  //             <p className="text-green-400 text-sm mb-3">
+  //               Location: {position[0].toFixed(4)}, {position[1].toFixed(4)}
+  //             </p>
+  //           )}
+  //           <div className="flex flex-col gap-3">
+  //             <div className="flex flex-col sm:flex-row gap-2">
+  //               <button
+  //                 onClick={handleCenterMap}
+  //                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg
+  //                   transition-colors duration-200 flex items-center justify-center gap-2"
+  //               >
+  //                 <span>Center Map</span>
+  //               </button>
+  //               <button
+  //                 onClick={toggleTracking}
+  //                 className={`flex-1 ${
+  //                   isTracking ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+  //                 } text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2`}
+  //               >
+  //                 {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+  //               </button>
+  //             </div>
+              
+  //             {/* Heatmap Toggle */}
+  //             <div className="flex items-center justify-between gap-2 mt-2">
+  //               <span className="text-sm text-gray-300">Heatmap Overlay</span>
+  //               <label className="relative inline-flex items-center cursor-pointer">
+  //                 <input
+  //                   type="checkbox"
+  //                   className="sr-only peer"
+  //                   checked={showHeatmap}
+  //                   onChange={(e) => setShowHeatmap(e.target.checked)}
+  //                 />
+  //                 <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 
+  //                   peer-focus:ring-blue-300 rounded-full peer 
+  //                   peer-checked:after:translate-x-full peer-checked:after:border-white 
+  //                   after:content-[''] after:absolute after:top-[2px] after:left-[2px] 
+  //                   after:bg-white after:border-gray-300 after:border after:rounded-full 
+  //                   after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+  //               </label>
+  //             </div>
+  //           </div>
+  //         </div>  
+  //         {/* Protester Controls */}
+  //         <div className="bg-gray-700 p-4 rounded-lg">
+  //           <h3 className="text-lg font-semibold mb-3">Protester Controls</h3>
+  //           <div className="grid grid-cols-2 gap-2">
+  //             {Object.entries(ALERT_CONFIGS).map(([type, config]) => (
+  //               <button
+  //                 key={type}
+  //                 onClick={() => handleAlertRequest(type as AlertType['type'])}
+  //                 className={`${
+  //                   activeAlert?.type === type ? 'ring-2 ring-white' : ''
+  //                 } ${
+  //                   type === 'water' ? 'bg-blue-600 hover:bg-blue-700' :
+  //                   type === 'medical' ? 'bg-red-600 hover:bg-red-700' :
+  //                   type === 'arrest' ? 'bg-yellow-600 hover:bg-yellow-700' :
+  //                   'bg-red-800 hover:bg-red-900'
+  //                 } text-white p-3 rounded-lg flex items-center justify-center gap-2 transition-colors`}
+  //                 title={config.tooltip}
+  //               >
+  //                 <img src={config.icon} alt={type} className="w-5 h-5" />
+  //                 <span className="text-sm">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+  //               </button>
+  //             ))}
+  //           </div>
+  //           {activeAlert && (
+  //             <button
+  //               onClick={handleClearAlert}
+  //               className="w-full mt-2 bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg
+  //                 flex items-center justify-center gap-2 transition-colors"
+  //               title="Clear Alert"
+  //             >
+  //               Clear Alert
+  //             </button>
+  //           )}
+  //         </div>
+  
+  //         {/* Simulation Controls */}
+  //         <div className="bg-gray-700 p-4 rounded-lg">
+  //           <h3 className="text-lg font-semibold mb-3">Simulation Development</h3>
+  //           <div className="grid grid-cols-2 gap-3">
+  //             {/* Dummy Controls */}
+  //             <div className="flex flex-col gap-2">
+  //               <div className="flex items-center gap-2">
+  //                 <label htmlFor="dummyCount" className="text-xs text-gray-300 whitespace-nowrap">
+  //                   Dummy Users:
+  //                 </label>
+  //                 <input
+  //                   id="dummyCount"
+  //                   type="number"
+  //                   min="0"
+  //                   max="1000"
+  //                   value={dummyCount}
+  //                   onChange={(e) => setDummyCount(e.target.value)}
+  //                   className="w-16 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white text-xs"
+  //                 />
+  //               </div>
+  //               <button
+  //                 onClick={handleDummyCountSubmit}
+  //                 className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg
+  //                   transition-colors duration-200 flex items-center justify-center text-xs"
+  //               >
+  //                 Add Dummies
+  //               </button>
+  //             </div>
+
+  //             {/* Alert Simulation Controls */}
+  //             <div className="flex flex-col gap-2">
+  //               <button
+  //                 onClick={runAlertSimulation}
+  //                 disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
+  //                 className={`w-full ${
+  //                   simulationConfig.isRunning 
+  //                     ? 'bg-gray-500 cursor-not-allowed' 
+  //                     : 'bg-green-600 hover:bg-green-700'
+  //                 } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
+  //               >
+  //                 {simulationConfig.isRunning ? 'Running...' : 'Random Simulation'}
+  //               </button>
+                
+  //               <button
+  //                 onClick={runClusterSimulation}
+  //                 disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
+  //                 className={`w-full ${
+  //                   simulationConfig.isRunning 
+  //                     ? 'bg-gray-500 cursor-not-allowed' 
+  //                     : 'bg-blue-600 hover:bg-blue-700'
+  //                 } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
+  //               >
+  //                 {simulationConfig.isRunning ? 'Running...' : 'Cluster Simulation'}
+  //               </button>
+  //             </div>
+  //             </div>
+  //           </div>
+  //         </div>
+
+  //       {/* Map Section - Scrollable on mobile, fixed on desktop */}
+  //       <div className="flex-1 p-4 order-2 lg:order-1 relative">
+  //         <div className="absolute inset-0 m-4">
+  //           <div className="h-full rounded-lg overflow-hidden shadow-2xl">
+  //           <MapContainer 
+  //             center={position} 
+  //             zoom={DEFAULT_ZOOM}
+  //             style={mapStyle}
+  //             ref={mapRef}
+  //             zoomControl={true}
+  //             attributionControl={false}
+  //             dragging={true}
+  //             scrollWheelZoom={true}
+  //             doubleClickZoom={true}
+  //             touchZoom={true}
+  //             tap={true}
+  //             className="z-0"
+  //           >
+  //             <TileLayer
+  //               url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
+  //               className="map-tiles"
+  //               maxZoom={22}
+  //               minZoom={3}
+  //             />
+  //             {showHeatmap && (
+  //               <HeatmapLayer
+  //                 fitBoundsOnLoad
+  //                 fitBoundsOnUpdate
+  //                 points={heatmapData}
+  //                 longitudeExtractor={(point: [number, number, number]) => point?.[1] ?? 0}
+  //                 latitudeExtractor={(point: [number, number, number]) => point?.[0] ?? 0}
+  //                 intensityExtractor={(point: [number, number, number]) => point?.[2] ?? 0}
+  //                 {...heatmapOptions}
+  //               />
+  //             )}             
+  //             <MapUpdater center={position} />
+  //             {sessions?.map((session) => {
+  //               const isCurrentUser = session.id === sessionId.current;
+  //               const effectiveAlert = isCurrentUser ? activeAlert : session.alert;
+                
+  //               return (
+  //                 <React.Fragment key={session.id}>
+  //                   {effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type] ? (
+  //                     <Marker 
+  //                       position={session.position}
+  //                       icon={L.divIcon({
+  //                         html: `<img src="${ALERT_CONFIGS[effectiveAlert.type].icon}" class="w-6 h-6" />`,
+  //                         className: '',
+  //                         iconSize: ALERT_CONFIGS[effectiveAlert.type].size as PointTuple,
+  //                       })}
+  //                     >
+  //                       <Popup>
+  //                         <div className="p-2">
+  //                           <h3 className="font-bold mb-2">
+  //                             {session.isDummy ? 'Simulated User' : 
+  //                             isCurrentUser ? 'You' : 'Other Protester'}
+  //                           </h3>
+  //                           <ul className="text-sm">
+  //                             <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
+  //                             <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
+  //                             <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
+  //                             <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
+  //                             {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
+  //                             <li className="text-red-500">
+  //                               <strong>{ALERT_CONFIGS[effectiveAlert.type].tooltip}</strong>
+  //                             </li>
+  //                           </ul>
+  //                         </div>
+  //                       </Popup>
+  //                     </Marker>
+  //                   ) : (
+  //                   <CircleMarker 
+  //                     center={session.position}
+  //                     {...circleMarkerStyle}
+  //                     color={getSessionColor(session.id)}
+  //                     radius={isCurrentUser ? 10 : 8}
+  //                     opacity={session.isDummy ? 0.5 : 1}
+  //                   >                                
+  //                     <Popup>
+  //                       <div className="p-2">
+  //                         <h3 className="font-bold mb-2">
+  //                           {session.isDummy ? 'Simulated User' : 
+  //                           session.id === sessionId.current ? 'You' : 'Other Protester'}
+  //                         </h3>
+  //                         <ul className="text-sm">
+  //                           <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
+  //                           <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
+  //                           <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
+  //                           <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
+  //                           {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
+  //                         </ul>
+  //                       </div>
+  //                     </Popup>
+  //                   </CircleMarker>
+  //                 )};
+  //                 </React.Fragment>
+  //               );
+  //             })}
+  //             {alertMarkers.map(marker => (
+  //               <Marker
+  //                 key={marker.id}
+  //                 position={marker.position}
+  //                 icon={L.divIcon({
+  //                   html: `<img src="${ALERT_CONFIGS[marker.type].icon}" class="w-6 h-6" />`,
+  //                   className: '',
+  //                   iconSize: ALERT_CONFIGS[marker.type].size as PointTuple,
+  //                 })}
+  //               >
+  //                 <Popup>
+  //                   <div className="p-2">
+  //                     <h3 className="font-bold mb-2">{ALERT_CONFIGS[marker.type].tooltip}</h3>
+  //                     <p className="text-sm mb-2">
+  //                       Expires in: {Math.max(0, Math.floor((30000 - (Date.now() - marker.createdAt)) / 1000))}s
+  //                     </p>
+  //                     {marker.creatorId === sessionId.current && (
+  //                       <button
+  //                         onClick={() => handleRemoveAlertMarker(marker.id)}
+  //                         className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm"
+  //                       >
+  //                         Delete Marker
+  //                       </button>
+  //                     )}
+  //                   </div>
+  //                 </Popup>
+  //               </Marker>
+  //             ))}
+  //           </MapContainer>
+  //           </div>
+  //         </div>
+  //       </div>
+  //     </div>
+  //   </div>
+  // );
 };
