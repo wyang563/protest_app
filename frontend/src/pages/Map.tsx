@@ -504,6 +504,12 @@ export const Map: React.FC = () => {
     }
   };
 
+  const geoOptions = {
+    enableHighAccuracy: true,
+    timeout: 10000,        // Increase timeout to 10 seconds
+    maximumAge: 5000      // Allow cached positions up to 5 seconds old
+  };
+  
   const heatmapOptions = {
     radius: 30,           // Reduced radius for more defined hotspots
     blur: 20,            // Increased blur for smoother transitions
@@ -640,11 +646,11 @@ export const Map: React.FC = () => {
           updateServerPosition(newPosition);
         },
         (err) => setLocationError(err.message),
-        { enableHighAccuracy: false, timeout: 5000 } // Lower accuracy for faster initial position
+        geoOptions
       );
     }
-  }, []); // Run once on mount
-
+  }, []); 
+  
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
@@ -664,7 +670,7 @@ export const Map: React.FC = () => {
             console.error(err);
             setLocationError('Unable to retrieve location.');
           },
-          { enableHighAccuracy: true }
+          geoOptions
         );
       } else if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
@@ -803,45 +809,49 @@ export const Map: React.FC = () => {
               </div>
             </div>
           </div>
-  
+
           {/* Simulation Development - De-emphasized */}
           <div className="bg-gray-700/50 p-3 rounded-lg">
             <h3 className="text-sm font-medium mb-2 text-gray-400">Development Tools</h3>
             <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="1000"
-                    value={dummyCount}
-                    onChange={(e) => setDummyCount(e.target.value)}
-                    className="w-16 px-2 py-0.5 rounded bg-gray-600/50 border border-gray-500/50 text-gray-300 text-xs"
-                  />
-                  <button
-                    onClick={handleDummyCountSubmit}
-                    className="bg-purple-600/50 hover:bg-purple-700/50 text-gray-200 px-2 py-0.5 rounded text-xs"
-                  >
-                    Add Dummies
-                  </button>
-                </div>
+              {/* Top Left: Input */}
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="1000"
+                  value={dummyCount}
+                  onChange={(e) => setDummyCount(e.target.value)}
+                  className="w-full px-2 py-0.5 rounded bg-gray-600/50 border border-gray-500/50 text-gray-300 text-xs"
+                  placeholder="# of dummies"
+                />
               </div>
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={runAlertSimulation}
-                  disabled={simulationConfig.isRunning}
-                  className="text-xs bg-green-600/50 hover:bg-green-700/50 text-gray-200 px-2 py-1 rounded"
-                >
-                  Random Sim
-                </button>
-                <button
-                  onClick={runClusterSimulation}
-                  disabled={simulationConfig.isRunning}
-                  className="text-xs bg-blue-600/50 hover:bg-blue-700/50 text-gray-200 px-2 py-1 rounded"
-                >
-                  Cluster Sim
-                </button>
-              </div>
+              
+              {/* Top Right: Random Sim */}
+              <button
+                onClick={runAlertSimulation}
+                disabled={simulationConfig.isRunning}
+                className="text-xs bg-green-600/50 hover:bg-green-700/50 text-gray-200 px-2 py-1 rounded"
+              >
+                Random Sim
+              </button>
+
+              {/* Bottom Left: Add Dummies */}
+              <button
+                onClick={handleDummyCountSubmit}
+                className="text-xs bg-purple-600/50 hover:bg-purple-700/50 text-gray-200 px-2 py-1 rounded"
+              >
+                Add Dummies
+              </button>
+
+              {/* Bottom Right: Cluster Sim */}
+              <button
+                onClick={runClusterSimulation}
+                disabled={simulationConfig.isRunning}
+                className="text-xs bg-blue-600/50 hover:bg-blue-700/50 text-gray-200 px-2 py-1 rounded"
+              >
+                Cluster Sim
+              </button>
             </div>
           </div>
         </div>
