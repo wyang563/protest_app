@@ -156,45 +156,72 @@ export const Map: React.FC = () => {
   const [clusters, setClusters] = useState<ClusterInfo[]>([]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetch(`${API_URL}/api/location`, { method: 'GET' }) // Or a dedicated `/api/activeConnections`
-        .then(res => res.json())
-        .then(data => setActiveConnections(data.activeConnections ?? 0))
-        .catch(console.error);
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/activeConnections`, { credentials: 'include' });
+        if (response.ok) {
+          const data = await response.json();
+          setActiveConnections(data.active);
+        }
+      } catch (error) {
+        console.error('Failed to fetch active connections:', error);
+      }
     }, 3000);
-  
+
     return () => clearInterval(interval);
   }, []);
-
   useEffect(() => {
-    // Immediately get location once
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setPosition([pos.coords.latitude, pos.coords.longitude]);
-        updateServerPosition([pos.coords.latitude, pos.coords.longitude]);
-      },
-      (err) => setLocationError(err.message),
-      { enableHighAccuracy: true }
-    );
-  
     if (isTracking) {
-      // Continuously watch
-      watchIdRef.current = navigator.geolocation.watchPosition(
+      // Get initial position
+      navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setPosition([pos.coords.latitude, pos.coords.longitude]);
-          updateServerPosition([pos.coords.latitude, pos.coords.longitude]);
+          const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setPosition(newPosition);
+          updateServerPosition(newPosition);
         },
         (err) => setLocationError(err.message),
         { enableHighAccuracy: true }
       );
-    } else if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
+  
+      // Start watching position
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setPosition(newPosition);
+          updateServerPosition(newPosition);
+        },
+        (err) => setLocationError(err.message),
+        { enableHighAccuracy: true }
+      );
+    } else {
+      // When tracking is disabled:
+      // 1. Clear the watch
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      
+      // 2. Remove user's session from the sessions list
+      setSessions(prev => prev.filter(s => s.id !== sessionId.current));
+      
+      // 3. Notify server about disconnection
+      fetch(`${API_URL}/api/location`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionId.current,
+          position: position,
+          timestamp: 0, // Use 0 to indicate disconnection
+          joinedAt: new Date().toISOString(),
+          alert: null
+        }),
+      }).catch(console.error);
     }
   
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
       }
     };
   }, [isTracking]);
@@ -247,7 +274,8 @@ export const Map: React.FC = () => {
 
   useEffect(() => {
     setSessions(prev => {
-      if (!prev.find(s => s.id === sessionId.current)) {
+      const hasCurrentUser = prev.some(s => s.id === sessionId.current);
+      if (!hasCurrentUser) {
         return [
           ...prev,
           {
@@ -260,7 +288,11 @@ export const Map: React.FC = () => {
           }
         ];
       }
-      return prev;
+      return prev.map(s => 
+        s.id === sessionId.current 
+          ? { ...s, position, lastUpdate: Date.now() }
+          : s
+      );
     });
   }, [position]);
 
@@ -564,21 +596,43 @@ export const Map: React.FC = () => {
   // Function to fetch all sessions
   const fetchSessions = async (dummyCountParam?: number) => {
     try {
-      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}`);
+      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}&creator_id=${sessionId.current}`, {
+        credentials: 'include'
+      });
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data: Session[] = await response.json();
-      const mapped = data.map(session => {
-        if (session.isDummy) {
-          session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      setSessions(prev => {
+        // Find current user's session
+        const currentUserSession = prev.find(s => s.id === sessionId.current);
+        
+        // Process incoming sessions and ensure dummies get unique IDs
+        const processedSessions = data.map(session => {
+          if (session.isDummy) {
+            return {
+              ...session,
+              id: `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              creatorId: sessionId.current
+            };
+          }
+          return session;
+        });
+  
+        // Only include current user's session if we're tracking
+        if (currentUserSession && isTracking) {
+          return [
+            currentUserSession,
+            ...processedSessions.filter(s => s.id !== sessionId.current)
+          ];
         }
-        return session;
+  
+        return processedSessions;
       });
-      setSessions(mapped);
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
   };
-
+  
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
@@ -630,8 +684,7 @@ export const Map: React.FC = () => {
       {/* Main Container - Flex column on mobile, row on desktop */}
       <div className="flex flex-col lg:flex-row h-screen">
         {/* Controls Section - Full width on mobile, sidebar on desktop */}
-        <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">
-          {/* User Info & Logout - Now as a normal block */}
+        <div className="w-full lg:w-96 flex-none overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">          {/* User Info & Logout - Now as a normal block */}
           <div className="bg-gray-700 p-4 rounded-lg">
             {user && (
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
