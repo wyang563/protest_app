@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS, cross_origin
+from datetime import timedelta
 import whisper
 import os
 from auth import auth_bp, init_auth_db
@@ -10,23 +11,27 @@ app = Flask(__name__)
 
 CORS(app,
     resources={
-        r"/api/*": {  # Match all /api routes
+        r"/api/*": {
             "origins": ["https://protest.morelos.dev", "http://localhost:3000"],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
-            "supports_credentials": True
+            "supports_credentials": True,
+            "expose_headers": ["Set-Cookie"]
         }
     },
     supports_credentials=True
 )
 
+
 # Basic session config without security
 app.config.update(
-    SECRET_KEY='dev',
-    SESSION_COOKIE_SECURE=True,  # Set to True for HTTPS
+    SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-key-change-this'),
+    SESSION_COOKIE_SECURE=True,  # For HTTPS
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_DOMAIN='protest.morelos.dev'  # Set your domain
+    SESSION_COOKIE_DOMAIN='protest.morelos.dev',  # Your domain
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),  # Session lasts 7 days
+    SESSION_COOKIE_NAME='protest_session'  # Custom session cookie name
 )
 
 app.register_blueprint(auth_bp, url_prefix='/api')

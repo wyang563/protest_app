@@ -18,14 +18,44 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const API_URL = process.env.NODE_ENV === 'production' 
+    ? 'https://protest.morelos.dev/api'
+    : 'http://localhost:5001/api';
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch(`${API_URL}/auth/check`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setIsAuthenticated(true);
+        setUser({
+          user_id: data.user_id,
+          username: data.username
+        });
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     checkAuth();
   }, []);
 
-  const API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://protest.morelos.dev/api'
-  : 'http://localhost:5001/api';
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   // Remove /api prefix since it's already in the routes
   const checkAuth = async () => {

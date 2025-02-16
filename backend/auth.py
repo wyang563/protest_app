@@ -27,7 +27,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@auth_bp.route('/auth/signup', methods=['POST'])  # Remove /api prefix
+@auth_bp.route('/auth/signup', methods=['POST'])
 def signup():
     data = request.get_json()
     username = data.get('username')
@@ -45,6 +45,8 @@ def signup():
         user_id = c.lastrowid
         conn.close()
 
+        # Set session as permanent immediately after signup
+        session.permanent = True
         session['user_id'] = user_id
         session['username'] = username
         
@@ -55,8 +57,8 @@ def signup():
         }), 201
     except sqlite3.IntegrityError:
         return jsonify({'error': 'Username already exists'}), 409
-
-@auth_bp.route('/auth/login', methods=['POST'])  # Remove /api prefix
+        
+@auth_bp.route('/auth/login', methods=['POST'])
 def login():
     data = request.get_json()
     username = data.get('username')
@@ -70,8 +72,11 @@ def login():
     conn.close()
 
     if user:
+        # Set session as permanent and update
+        session.permanent = True
         session['user_id'] = user[0]
         session['username'] = user[1]
+        
         return jsonify({
             'message': 'Login successful',
             'user_id': user[0],
@@ -85,7 +90,7 @@ def logout():
     session.clear()
     return jsonify({'message': 'Logged out successfully'})
 
-@auth_bp.route('/auth/check', methods=['GET'])  # Remove /api prefix
+@auth_bp.route('/auth/check', methods=['GET'])
 def check_auth():
     if 'user_id' in session:
         return jsonify({
