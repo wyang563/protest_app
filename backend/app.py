@@ -55,6 +55,55 @@ def query_transcriptions_db():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/range_transcriptions', methods=['GET'])
+@cross_origin(origin="https://protest.morelos.dev")
+def get_transcriptions():
+    """
+    Example endpoint to get transcriptions filtered by:
+      - radio_stream
+      - optional start_time (YYYY-MM-DDTHH:MM)
+      - optional end_time   (YYYY-MM-DDTHH:MM)
+    """
+    db_file = "transcriptions.db"
+
+    # Query parameters from the request
+    radio_stream = request.args.get('radio_stream')
+    start_time   = request.args.get('start_time')  # expects e.g. "2023-09-01T10:00"
+    end_time     = request.args.get('end_time')    # expects e.g. "2023-09-02T09:59"
+
+    # Basic validation
+    if not radio_stream:
+        return jsonify({"error": "Missing radio_stream"}), 400
+
+    try:
+        conn = sqlite3.connect(db_file)
+        cursor = conn.cursor()
+
+        # Build a base query
+        sql = "SELECT * FROM transcriptions WHERE radio_stream = ?"
+        params = [radio_stream]
+
+        # If start_time is provided, filter by start_time
+        if start_time:
+            sql += " AND start_time >= ?"
+            params.append(start_time)
+
+        # If end_time is provided, filter by end_time
+        if end_time:
+            sql += " AND start_time <= ?"
+            params.append(end_time)
+
+        # Finally, run
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        col_names = [desc[0] for desc in cursor.description]
+        conn.close()
+
+        results = [dict(zip(col_names, row)) for row in rows]
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/transcribe', methods=['POST'])
 @cross_origin(origin="https://protest.morelos.dev")
 def transcribe_audio():

@@ -84,9 +84,8 @@ def transcribe_stream(audio_store, stream_name, model, segment_duration):
             for segment in result.get("segments", []):
                 start_sec = segment["start"]
                 text = segment["text"].strip()
-                # Format seconds to HH:MM:SS
                 cur_time = start_time + start_sec 
-                start_time_str = time.strftime('%H:%M:%S', time.gmtime(cur_time))
+                start_time_str = time.strftime('%Y-%m-%dT%H:%M', time.gmtime(cur_time))
                 db.execute("""
                 INSERT INTO transcriptions (radio_stream, start_time, text)
                 VALUES (?, ?, ?)
