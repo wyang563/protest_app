@@ -588,10 +588,12 @@ export const Map: React.FC = () => {
               tap={true}
               className="z-0"
             >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              />
+            <TileLayer
+              url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
+              className="map-tiles"
+              maxZoom={22}
+              minZoom={3}
+            />
               <HeatmapLayer
                 fitBoundsOnLoad
                 fitBoundsOnUpdate
