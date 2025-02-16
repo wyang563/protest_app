@@ -15,6 +15,19 @@ session_lock = threading.Lock()
 alert_markers = {}
 alert_lock = threading.Lock()
 
+active_connections = {}
+connection_lock = threading.Lock()
+
+def count_active_connections():
+    current_time = time.time() * 1000
+    with connection_lock:
+        # Filter out inactive sessions (older than 30 seconds)
+        active_count = sum(
+            1 for session in sessions.values()
+            if (current_time - session['timestamp'] < 30000 and not session.get('isDummy', False))
+        )
+        return active_count
+
 def generate_random_coordinates(center: tuple[float, float], min_distance: float, max_distance: float, count: int) -> list:
     """Generate random coordinates within a radius range from center point"""
     dummy_positions = []
@@ -99,10 +112,11 @@ def get_sessions():
             'joinedAt': session['joinedAt'],
             'ip': session['ip'],
             'isDummy': False,
-            'alert': session.get('alert'),  # Preserve alerts
-            'creatorId': session.get('creatorId')
+            'alert': session.get('alert'),
+            'creatorId': session.get('creatorId'),
+            'activeConnections': count_active_connections()  # Add connection count
         } for session in sessions.values() if not session.get('isDummy', False)]
-        
+
         # Handle dummy sessions
         if dummy_count > 0:
             # Calculate center of mass

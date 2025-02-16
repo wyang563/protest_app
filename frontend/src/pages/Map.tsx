@@ -124,6 +124,7 @@ export const Map: React.FC = () => {
   const [heatmapData, setHeatmapData] = useState<[number, number, number][]>([]);
   const [activeAlert, setActiveAlert] = useState<AlertType | null>(null);
   const [alertMarkers, setAlertMarkers] = useState<AlertMarker[]>([]);
+  const [activeConnections, setActiveConnections] = useState<number>(0);
 
   useEffect(() => {
     const cleanup = setInterval(() => {
@@ -230,7 +231,7 @@ export const Map: React.FC = () => {
       method: 'DELETE'
     }).then(() => fetchAlertMarkers());
   };
-      
+
   // Add handleClearAlert function
   const handleClearAlert = () => {
     console.log('[Clear Alert]', {
@@ -290,6 +291,12 @@ const fetchSessions = async () => {
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data = await response.json();
       
+      // Update connection count if available in first real session
+      const realSession = data.find((s: Session) => !s.isDummy);
+      if (realSession?.activeConnections) {
+        setActiveConnections(realSession.activeConnections);
+      }
+
       const processedIds = new Set<string>();
       
       const updatedSessions = data.reduce((acc: Session[], newSession: Session) => {
@@ -415,6 +422,9 @@ const fetchSessions = async () => {
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-2xl">Protest Map</h1>
             <div className="flex items-center gap-4">
+              <div className="text-gray-600 bg-white px-4 py-2 rounded-lg shadow">
+                <span>Active Connections: <span className="font-bold">{activeConnections}</span></span>
+              </div>
               {user && (
                 <div className="text-gray-600 bg-white px-4 py-2 rounded-lg shadow flex items-center gap-4">
                   <span>Logged in as: <span className="font-semibold">{user.username}</span></span>
@@ -427,8 +437,7 @@ const fetchSessions = async () => {
                 </div>
               )}
             </div>
-          </div>
-          
+          </div>          
         {/* Location Status and Controls */}
         <div className="mb-4">
           <h2 className="text-xl mb-2">Location Status</h2>
