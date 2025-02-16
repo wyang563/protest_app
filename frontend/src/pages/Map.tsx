@@ -130,6 +130,14 @@ export const Map: React.FC = () => {
     return () => clearInterval(cleanup);
   }, []);  
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAlertMarkers();
+    }, 2000);
+  
+    return () => clearInterval(interval);
+  }, []);
+
   const logMarkerChange = (session: Session, action: string) => {
     const isCurrentUser = session.id === sessionId.current;
     if (isCurrentUser) {
@@ -167,6 +175,17 @@ export const Map: React.FC = () => {
     maxOpacity: 0.8,     // Reduced max opacity for better color visibility
   };
 
+  const fetchAlertMarkers = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/alerts`);
+      if (!response.ok) throw new Error('Failed to fetch alerts');
+      const data = await response.json();
+      setAlertMarkers(data);
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+    }
+  };  
+
   const handleAlertRequest = (type: AlertType['type']) => {
     const newAlertMarker: AlertMarker = {
       id: crypto.randomUUID(),
@@ -176,19 +195,28 @@ export const Map: React.FC = () => {
       creatorId: sessionId.current
     };
     
-    console.log('[Alert Marker Added]', {
-      type,
-      position,
-      time: new Date().toISOString()
-    });
-  
-    setAlertMarkers(prev => [...prev, newAlertMarker]);
+    // Send alert to server
+    fetch(`${API_BASE_URL}/alert`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        markerId: newAlertMarker.id,
+        position: newAlertMarker.position,
+        type: newAlertMarker.type,
+        creatorId: newAlertMarker.creatorId,
+        createdAt: newAlertMarker.createdAt
+      })
+    }).then(() => fetchAlertMarkers());
   };
-
+  
   const handleRemoveAlertMarker = (markerId: string) => {
-    setAlertMarkers(prev => prev.filter(marker => marker.id !== markerId));
+    fetch(`${API_BASE_URL}/alert/${markerId}`, {
+      method: 'DELETE'
+    }).then(() => fetchAlertMarkers());
   };
-  
+    
   // Add handleClearAlert function
   const handleClearAlert = () => {
     console.log('[Clear Alert]', {

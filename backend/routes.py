@@ -12,6 +12,9 @@ bp = Blueprint('routes', __name__)
 sessions = {}
 session_lock = threading.Lock()
 
+alert_markers = {}
+alert_lock = threading.Lock()
+
 def generate_random_coordinates(center: tuple[float, float], min_distance: float, max_distance: float, count: int) -> list:
     """Generate random coordinates within a radius range from center point"""
     dummy_positions = []
@@ -156,3 +159,61 @@ def get_sessions():
         } for session in sessions.values()]       
          
         return jsonify(all_sessions)
+    
+@bp.route('/api/alert', methods=['POST'])
+def create_alert():
+    data = request.json
+    marker_id = data.get('markerId')
+    position = data.get('position')
+    alert_type = data.get('type')
+    creator_id = data.get('creatorId')
+    created_at = data.get('createdAt')
+
+    with alert_lock:
+        alert_markers[marker_id] = {
+            'id': marker_id,
+            'position': position,
+            'type': alert_type,
+            'creatorId': creator_id,
+            'createdAt': created_at
+        }
+    
+    return jsonify({'success': True})
+
+@bp.route('/api/alert/<marker_id>', methods=['DELETE'])
+def remove_alert(marker_id):
+    with alert_lock:
+        if marker_id in alert_markers:
+            del alert_markers[marker_id]
+    
+    return jsonify({'success': True})
+
+@bp.route('/api/alerts', methods=['GET'])
+def get_alerts():
+    current_time = time.time() * 1000
+    
+    with alert_lock:
+        # Filter out expired alerts (older than 30 seconds)
+        valid_alerts = [
+            alert for alert in alert_markers.values()
+            if current_time - alert['createdAt'] < 30000
+        ]
+    
+    return jsonify(valid_alerts)
+
+# Add cleanup function for old alerts
+def cleanup_old_alerts():
+    while True:
+        current_time = time.time() * 1000
+        with alert_lock:
+            markers_to_remove = [
+                marker_id for marker_id, alert in alert_markers.items()
+                if current_time - alert['createdAt'] > 30000
+            ]
+            for marker_id in markers_to_remove:
+                del alert_markers[marker_id]
+        time.sleep(10)
+
+# Start alert cleanup thread
+alert_cleanup_thread = threading.Thread(target=cleanup_old_alerts, daemon=True)
+alert_cleanup_thread.start()
