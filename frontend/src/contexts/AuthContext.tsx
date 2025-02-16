@@ -21,8 +21,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://protest.morelos.dev'
-  : 'http://localhost:5001';
+    ? 'https://protest.morelos.dev'
+    : 'http://localhost:5001';
 
   const checkAuth = async () => {
     try {
@@ -41,11 +41,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user_id: data.user_id,
           username: data.username
         });
+      } else {
+        // Handle unauthorized or other errors
+        setIsAuthenticated(false);
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
+      setUser(null);
     } finally {
-      setLoading(false);
+      setLoading(false);  // Always set loading to false when done
     }
   };
 
@@ -54,7 +60,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl font-semibold text-gray-600">Loading...</div>
+      </div>
+    );
   }
 
   const login = async (username: string, password: string) => {
@@ -104,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-const logout = async () => {
+  const logout = async () => {
     try {
       const response = await fetch(`${API_URL}/api/auth/logout`, {
         method: 'POST',
