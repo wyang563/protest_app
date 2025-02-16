@@ -189,66 +189,59 @@ export const Map: React.FC = () => {
   const runAlertSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
-  
+    
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
-    setUsedAlertPositions(new Set()); // Reset used positions at start
-  
+    
     const simulationInterval = setInterval(() => {
+      // Process all dummy sessions
       dummySessions.forEach(dummySession => {
-        // 20% chance to attempt alert creation per dummy every 5 seconds
-        if (Math.random() < 0.2) {
-          const alertType = rollForAlert(simulationConfig.alertProbabilities);
-          if (!alertType) return;
-  
-          // Create position key to check for duplicates
-          const posKey = `${dummySession.position[0]},${dummySession.position[1]}`;
-  
-          // Skip if this position was recently used
-          if (usedAlertPositions.has(posKey)) return;
-  
-          // Add position to used set
-          setUsedAlertPositions(prev => new Set(prev).add(posKey));
-  
-          // Create unique alert
-          const newAlert: AlertMarker = {
-            id: crypto.randomUUID(),
-            position: dummySession.position,
-            type: alertType,
-            createdAt: Date.now(),
-            creatorId: dummySession.id
-          };
-  
-          // Send alert to server
-          fetch(`${API_URL}/api/alert`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(newAlert)
-          })
-          .then(() => {
-            // Clear position from used set after alert expires (2 seconds)
-            setTimeout(() => {
-              setUsedAlertPositions(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(posKey);
-                return newSet;
-              });
-            }, 2000);
-          })
-          .catch(console.error);
-        }
+        // Get random alert type based on probability distribution
+        const alertType = rollForAlert(simulationConfig.alertProbabilities);
+        if (!alertType) return;
+        
+        // Create unique alert
+        const newAlert: AlertMarker = {
+          id: crypto.randomUUID(),
+          position: dummySession.position,
+          type: alertType,
+          createdAt: Date.now(),
+          creatorId: dummySession.id
+        };
+        
+        // Send alert to server
+        fetch(`${API_URL}/api/alert`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newAlert)
+        })
+        .then(() => {
+          // Remove alert after 2 seconds
+          setTimeout(() => {
+            fetch(`${API_URL}/api/alert/${newAlert.id}`, {
+              method: 'DELETE'
+            }).then(() => {
+              // Create new alert 3 seconds after deletion
+              setTimeout(() => {
+                if (simulationConfig.isRunning) {
+                  runAlertSimulation();
+                }
+              }, 3000);
+            });
+          }, 2000);
+        })
+        .catch(console.error);
       });
     }, 5000);
-  
+    
     // Stop simulation after 1 minute
     setTimeout(() => {
       clearInterval(simulationInterval);
       setSimulationConfig(prev => ({ ...prev, isRunning: false }));
-      setUsedAlertPositions(new Set()); // Clear used positions
     }, 60000);
   };
-
+  
   const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
     const roll = Math.random();
     
