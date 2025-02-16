@@ -19,15 +19,15 @@ active_connections = {}
 connection_lock = threading.Lock()
 
 def count_active_connections():
+    """Count real (non-dummy) active sessions within last 30 seconds"""
     current_time = time.time() * 1000
-    with connection_lock:
-        # Count real (non-dummy) sessions that are active within last 30 seconds
+    with session_lock:
         active_count = sum(
             1 for session in sessions.values()
             if (
-                current_time - session.get('timestamp', 0) < 30000 and  # Check last update within 30s
-                not session.get('isDummy', False) and                   # Not a dummy session
-                session.get('id') is not None                          # Valid session ID
+                current_time - session.get('timestamp', 0) < 30000 and  # Active within 30s
+                not session.get('isDummy', False) and                   # Not a dummy
+                session.get('id') is not None                          # Valid session
             )
         )
         return active_count
@@ -75,7 +75,7 @@ def update_location():
     data = request.json
     session_id = data.get('sessionId')
     position = data.get('position')
-    timestamp = data.get('timestamp', time.time() * 1000)  # Default to current time if not provided
+    timestamp = data.get('timestamp', time.time() * 1000)
     joined_at = data.get('joinedAt', datetime.now().isoformat())
     alert = data.get('alert')
 
@@ -83,7 +83,9 @@ def update_location():
         return jsonify({'error': 'Missing required fields'}), 400
 
     with session_lock:
-        if session_id not in sessions:
+        is_new_session = session_id not in sessions
+        
+        if is_new_session:
             # New session
             sessions[session_id] = {
                 'id': session_id,
@@ -92,7 +94,7 @@ def update_location():
                 'joinedAt': joined_at,
                 'ip': request.remote_addr,
                 'alert': alert,
-                'isDummy': False  # Explicitly mark as real session
+                'isDummy': False
             }
         else:
             # Update existing session
@@ -101,8 +103,15 @@ def update_location():
                 'timestamp': timestamp,
                 'alert': alert
             })
-
-    return jsonify({'success': True})
+        
+        # Get current active connection count
+        active_count = count_active_connections()
+        
+        return jsonify({
+            'success': True,
+            'activeConnections': active_count,
+            'isNewSession': is_new_session
+        })
 
 @routes_bp.route('/api/sessions', methods=['GET'])
 def get_sessions():

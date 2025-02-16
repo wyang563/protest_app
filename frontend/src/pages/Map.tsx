@@ -145,6 +145,25 @@ export const Map: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      // When component unmounts, notify server about disconnection
+      fetch(`${API_URL}/api/location`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: sessionId.current,
+          position: position,
+          timestamp: 0, // Use 0 to indicate disconnection
+          joinedAt: new Date().toISOString(),
+          alert: null
+        }),
+      }).catch(console.error);
+    };
+  }, []);
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -263,9 +282,9 @@ export const Map: React.FC = () => {
   };
   
   // Function to update server with position
-const updateServerPosition = async (pos: [number, number], alert: AlertType | null = null) => {
-  try {
-    const response = await fetch(`${API_URL}/api/location`, {
+  const updateServerPosition = async (pos: [number, number], alert: AlertType | null = null) => {
+    try {
+      const response = await fetch(`${API_URL}/api/location`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,25 +294,32 @@ const updateServerPosition = async (pos: [number, number], alert: AlertType | nu
           position: pos,
           timestamp: Date.now(),
           joinedAt: new Date().toISOString(),
-          alert: alert ?? activeAlert // This will now work with the updated type
+          alert: alert ?? activeAlert
         }),
       });
+      
       if (!response.ok) throw new Error('Failed to update location');
+      
+      const data = await response.json();
+      if (data.activeConnections !== undefined) {
+        setActiveConnections(data.activeConnections);
+      }
+      
     } catch (error) {
       console.error('Error updating location:', error);
     }
   };
   
   // Function to fetch all sessions
-const fetchSessions = async () => {
-  try {
-    const response = await fetch(`${API_URL}/api/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
+  const fetchSessions = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data = await response.json();
       
-      // Update connection count if available in first real session
+      // Update active connections from real session data
       const realSession = data.find((s: Session) => !s.isDummy);
-      if (realSession?.activeConnections) {
+      if (realSession?.activeConnections !== undefined) {
         setActiveConnections(realSession.activeConnections);
       }
 
