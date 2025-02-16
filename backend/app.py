@@ -9,26 +9,28 @@ import sqlite3
 app = Flask(__name__)
 
 CORS(app,
-    resources={r"/*": {  # Match all routes
-        "origins": "*",
-        "methods": ["*"],
-        "allow_headers": ["*"],
-        "supports_credentials": True
-    }},
+    resources={
+        r"/api/*": {  # Match all /api routes
+            "origins": ["https://protest.morelos.dev", "http://localhost:3000"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
+        }
+    },
     supports_credentials=True
 )
 
 # Basic session config without security
 app.config.update(
     SECRET_KEY='dev',
-    SESSION_COOKIE_SECURE=False,
-    SESSION_COOKIE_HTTPONLY=False,
-    SESSION_COOKIE_SAMESITE=None,
-    SESSION_COOKIE_DOMAIN=None
+    SESSION_COOKIE_SECURE=True,  # Set to True for HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_DOMAIN='protest.morelos.dev'  # Set your domain
 )
 
-app.register_blueprint(auth_bp)  # Changed from /api/auth
-app.register_blueprint(routes_bp)  # Changed from /api
+app.register_blueprint(auth_bp, url_prefix='/api')
+app.register_blueprint(routes_bp, url_prefix='/api')
 
 init_auth_db()
 

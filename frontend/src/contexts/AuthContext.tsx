@@ -23,7 +23,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+  const API_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://protest.morelos.dev/api'
+  : 'http://localhost:5001/api';
 
   // Remove /api prefix since it's already in the routes
   const checkAuth = async () => {
@@ -103,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(false);
     setUser(null);
   };
-  
+
   return (
     <AuthContext.Provider value={{ isAuthenticated, user, login, signup, logout }}>
       {children}
