@@ -156,6 +156,50 @@ export const Map: React.FC = () => {
   const [clusters, setClusters] = useState<ClusterInfo[]>([]);
 
   useEffect(() => {
+    const interval = setInterval(() => {
+      fetch(`${API_URL}/api/location`, { method: 'GET' }) // Or a dedicated `/api/activeConnections`
+        .then(res => res.json())
+        .then(data => setActiveConnections(data.activeConnections ?? 0))
+        .catch(console.error);
+    }, 3000);
+  
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    // Immediately get location once
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPosition([pos.coords.latitude, pos.coords.longitude]);
+        updateServerPosition([pos.coords.latitude, pos.coords.longitude]);
+      },
+      (err) => setLocationError(err.message),
+      { enableHighAccuracy: true }
+    );
+  
+    if (isTracking) {
+      // Continuously watch
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          setPosition([pos.coords.latitude, pos.coords.longitude]);
+          updateServerPosition([pos.coords.latitude, pos.coords.longitude]);
+        },
+        (err) => setLocationError(err.message),
+        { enableHighAccuracy: true }
+      );
+    } else if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+  
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, [isTracking]);
+
+  useEffect(() => {
     const cleanup = setInterval(() => {
       const now = Date.now();
       setAlertMarkers(prev => 
