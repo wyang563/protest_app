@@ -40,6 +40,18 @@ const circleMarkerStyle = {
   radius: 8,
 };
 
+interface SimulationConfig {
+  isRunning: boolean;
+  direction: number;  // 0-360 degrees
+  alertProbabilities: {
+    none: number;     // 50%
+    water: number;    // 28%
+    medical: number;  // 10%
+    arrest: number;   // 8%
+    stayaway: number; // 4%
+  };
+}
+
 interface AlertType {
   type: 'water' | 'medical' | 'arrest' | 'stayaway';
   expiresAt: number;
@@ -125,6 +137,18 @@ export const Map: React.FC = () => {
   const [activeAlert, setActiveAlert] = useState<AlertType | null>(null);
   const [alertMarkers, setAlertMarkers] = useState<AlertMarker[]>([]);
   const [activeConnections, setActiveConnections] = useState<number>(0);
+  const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>({
+    isRunning: false,
+    direction: 0,
+    alertProbabilities: {
+      none: 0.50,
+      water: 0.28,
+      medical: 0.10,
+      arrest: 0.08,
+      stayaway: 0.04
+    }
+  });
+  const [directionInput, setDirectionInput] = useState<string>('0');
 
   useEffect(() => {
     const cleanup = setInterval(() => {
@@ -163,6 +187,106 @@ export const Map: React.FC = () => {
       }).catch(console.error);
     };
   }, []);
+
+  const runAlertSimulation = () => {
+    if (sessions.length === 0) return;
+    
+    // Start simulation
+    setSimulationConfig(prev => ({ ...prev, isRunning: true }));
+    
+    const simulationInterval = setInterval(() => {
+      sessions.forEach(session => {
+        if (!session.isDummy) return;
+        
+        // Roll for alert every 5 seconds
+        if (Math.random() < 0.2) {  // 20% chance per 5-second interval
+          const alertType = rollForAlert(simulationConfig.alertProbabilities);
+          if (!alertType) return;
+          
+          // Calculate biased position
+          const biasedPosition = calculateBiasedPosition(
+            session.position, 
+            simulationConfig.direction
+          );
+          
+          // Create alert
+          const newAlert: AlertMarker = {
+            id: crypto.randomUUID(),
+            position: biasedPosition,
+            type: alertType,
+            createdAt: Date.now(),
+            creatorId: session.id
+          };
+          
+          // Send alert to server
+          fetch(`${API_URL}/api/alert`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              markerId: newAlert.id,
+              position: newAlert.position,
+              type: newAlert.type,
+              creatorId: newAlert.creatorId,
+              createdAt: newAlert.createdAt
+            })
+          });
+          
+          // Remove alert after 2 seconds
+          setTimeout(() => {
+            fetch(`${API_URL}/api/alert/${newAlert.id}`, {
+              method: 'DELETE'
+            });
+          }, 2000);
+        }
+      });
+    }, 5000);  // Check every 5 seconds
+    
+    // Stop simulation after 1 minute
+    setTimeout(() => {
+      clearInterval(simulationInterval);
+      setSimulationConfig(prev => ({ ...prev, isRunning: false }));
+    }, 60000);
+  };
+
+  const calculateBiasedPosition = (
+    basePosition: [number, number], 
+    direction: number, 
+    maxDistance: number = 300
+  ): [number, number] => {
+    // Convert direction to radians and add random variation (±30°)
+    const directionRad = (direction + (Math.random() * 60 - 30)) * (Math.PI / 180);
+    
+    // Bias towards the chosen direction (80% more likely)
+    const biasedDistance = maxDistance * (0.2 + 0.8 * Math.random());
+    
+    // Calculate new position
+    const lat = basePosition[0] + (biasedDistance / 111111) * Math.cos(directionRad);
+    const lng = basePosition[1] + (biasedDistance / (111111 * Math.cos(basePosition[0] * (Math.PI / 180)))) * Math.sin(directionRad);
+    
+    return [lat, lng];
+  };
+  
+  const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
+    const roll = Math.random();
+    let cumulative = probabilities.none;
+    
+    if (roll > cumulative) {
+      cumulative += probabilities.water;
+      if (roll <= cumulative) return 'water';
+      
+      cumulative += probabilities.medical;
+      if (roll <= cumulative) return 'medical';
+      
+      cumulative += probabilities.arrest;
+      if (roll <= cumulative) return 'arrest';
+      
+      return 'stayaway';
+    }
+    
+    return null;
+  };
 
   const handleLogout = async () => {
     try {
@@ -542,35 +666,71 @@ export const Map: React.FC = () => {
             )}
           </div>
   
-          {/* Simulation Controls */}
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold mb-3">Simulation Development</h3>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <label htmlFor="dummyCount" className="text-sm text-gray-300">
-                  Dummy Users:
+        {/* Simulation Controls */}
+        <div className="bg-gray-700 p-4 rounded-lg">
+          <h3 className="text-lg font-semibold mb-3">Simulation Development</h3>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <label htmlFor="dummyCount" className="text-sm text-gray-300">
+                Dummy Users:
+              </label>
+              <input
+                id="dummyCount"
+                type="number"
+                min="0"
+                max="1000"
+                value={dummyCount}
+                onChange={(e) => setDummyCount(e.target.value)}
+                className="w-24 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white"
+              />
+            </div>
+            <button
+              onClick={handleDummyCountSubmit}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg
+                transition-colors duration-200 flex items-center justify-center gap-2"
+            >
+              Add Dummy Users
+            </button>
+            
+            {/* Alert Simulation Controls */}
+            <div className="mt-4 pt-4 border-t border-gray-600">
+              <h4 className="text-md font-semibold mb-2">Alert Simulation</h4>
+              <div className="flex items-center gap-3 mb-3">
+                <label htmlFor="direction" className="text-sm text-gray-300">
+                  Direction (0-360°):
                 </label>
                 <input
-                  id="dummyCount"
+                  id="direction"
                   type="number"
                   min="0"
-                  max="1000"
-                  value={dummyCount}
-                  onChange={(e) => setDummyCount(e.target.value)}
+                  max="360"
+                  value={directionInput}
+                  onChange={(e) => setDirectionInput(e.target.value)}
                   className="w-24 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white"
                 />
               </div>
               <button
-                onClick={handleDummyCountSubmit}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg
-                  transition-colors duration-200 flex items-center justify-center gap-2"
+                onClick={() => {
+                  setSimulationConfig(prev => ({
+                    ...prev,
+                    direction: parseInt(directionInput) || 0
+                  }));
+                  runAlertSimulation();
+                }}
+                disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
+                className={`w-full ${
+                  simulationConfig.isRunning 
+                    ? 'bg-gray-500 cursor-not-allowed' 
+                    : 'bg-green-600 hover:bg-green-700'
+                } text-white px-4 py-2 rounded-lg transition-colors duration-200`}
               >
-                Add Dummy Users
+                {simulationConfig.isRunning ? 'Simulation Running...' : 'Start Alert Simulation'}
               </button>
+              </div>
             </div>
           </div>
         </div>
-  
+
         {/* Map Section - Scrollable on mobile, fixed on desktop */}
         <div className="flex-1 p-4 order-2 lg:order-1 min-h-[60vh] lg:h-full">
           <div className="h-full rounded-lg overflow-hidden shadow-2xl relative map-container">
