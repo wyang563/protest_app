@@ -115,83 +115,86 @@ def update_location():
 
 @routes_bp.route('/api/sessions', methods=['GET'])
 def get_sessions():
-    dummy_count = request.args.get('dummy_count', default=0, type=int)
-    creator_id = request.args.get('creator_id')
-    
-    with session_lock:
-        # Get current active connection count
-        current_connections = count_active_connections()
+    try:
+        dummy_count = request.args.get('dummy_count', default=0, type=int)
+        creator_id = request.args.get('creator_id')
         
-        # Get real sessions with their alerts
-        real_sessions = [{
-            'id': session['id'],
-            'position': session['position'],
-            'lastUpdate': session['timestamp'],
-            'joinedAt': session['joinedAt'],
-            'ip': session['ip'],
-            'isDummy': False,
-            'alert': session.get('alert'),
-            'creatorId': session.get('creatorId'),
-            'activeConnections': current_connections  # Include in every real session
-        } for session in sessions.values() if not session.get('isDummy', False)]
+        with session_lock:
+            # Get current active connection count
+            current_connections = count_active_connections()
+            
+            # Get real sessions with their alerts
+            real_sessions = [{
+                'id': session['id'],
+                'position': session['position'],
+                'lastUpdate': session['timestamp'],
+                'joinedAt': session['joinedAt'],
+                'ip': session['ip'],
+                'isDummy': False,
+                'alert': session.get('alert'),
+                'creatorId': session.get('creatorId'),
+                'activeConnections': current_connections
+            } for session in sessions.values() 
+                if not session.get('isDummy', False) and session.get('timestamp', 0) > time.time() * 1000 - 30000]
+            
+            # Handle dummy sessions
+            if dummy_count > 0:
+                # Calculate center of mass from active sessions only
+                if real_sessions:
+                    positions = np.array([s['position'] for s in real_sessions])
+                    center_of_mass = positions.mean(axis=0)
+                else:
+                    center_of_mass = np.array([40.7128, -74.0060])
+                
+                # Clear old dummy sessions for this creator
+                sessions_to_remove = [
+                    sid for sid, session in sessions.items() 
+                    if session.get('isDummy', False) and session.get('creatorId') == creator_id
+                ]
+                for sid in sessions_to_remove:
+                    del sessions[sid]
+                
+                # Generate new dummy positions
+                dummy_positions = generate_random_coordinates(
+                    center=tuple(center_of_mass),
+                    min_distance=30,
+                    max_distance=300,
+                    count=dummy_count
+                )
+                
+                # Create dummy sessions
+                current_time = time.time() * 1000
+                for i, pos in enumerate(dummy_positions):
+                    dummy_id = f'dummy-{int(current_time)}-{i}'
+                    sessions[dummy_id] = {
+                        'id': dummy_id,
+                        'position': pos,
+                        'timestamp': current_time,
+                        'joinedAt': datetime.now().isoformat(),
+                        'ip': '0.0.0.0',
+                        'isDummy': True,
+                        'creatorId': creator_id,
+                        'alert': None
+                    }
+            
+            # Return all active sessions
+            all_sessions = [{
+                'id': session['id'],
+                'position': session['position'],
+                'lastUpdate': session['timestamp'],
+                'joinedAt': session['joinedAt'],
+                'ip': session['ip'],
+                'isDummy': session.get('isDummy', False),
+                'creatorId': session.get('creatorId'),
+                'alert': session.get('alert')
+            } for session in sessions.values()]
+            
+            return jsonify(all_sessions)
+            
+    except Exception as e:
+        print(f"Error in get_sessions: {str(e)}")
+        return jsonify({'error': str(e)}), 500
         
-        # Handle dummy sessions
-        if dummy_count > 0:
-            # Calculate center of mass
-            if real_sessions:
-                positions = np.array([s['position'] for s in real_sessions])
-                center_of_mass = positions.mean(axis=0)
-                print(f"Center of mass: {center_of_mass}")
-            else:
-                center_of_mass = np.array([40.7128, -74.0060])
-                print(f"Using default center: {center_of_mass}")
-            
-            # Clear old dummy sessions only if they belong to this creator
-            sessions_to_remove = [sid for sid, session in sessions.items() 
-                                if session.get('isDummy', False) and 
-                                session.get('creatorId') == creator_id]
-            for sid in sessions_to_remove:
-                del sessions[sid]
-            
-            # Generate new dummy positions
-            dummy_positions = generate_random_coordinates(
-                center=tuple(center_of_mass),
-                min_distance=30,    # Minimum 5 meters
-                max_distance=300,  # Maximum 200 meters
-                count=dummy_count
-            )
-            
-            print(f"Generated dummy positions: {dummy_positions}")
-            
-            # Create and store dummy sessions with unique IDs based on timestamp
-            base_time = time.time() * 1000
-            for i, pos in enumerate(dummy_positions):
-                dummy_id = f'dummy-{int(base_time)}-{i}'  # Unique ID that will get a unique color
-                dummy_session = {
-                    'id': dummy_id,
-                    'position': pos,
-                    'timestamp': base_time,
-                    'joinedAt': datetime.now().isoformat(),
-                    'ip': '0.0.0.0',
-                    'isDummy': True,
-                    'creatorId': creator_id  # Track which real user created this dummy
-                }
-                sessions[dummy_id] = dummy_session
-        
-        # Return all sessions
-        all_sessions = [{
-            'id': session['id'],
-            'position': session['position'],
-            'lastUpdate': session['timestamp'],
-            'joinedAt': session['joinedAt'],
-            'ip': session['ip'],
-            'isDummy': session.get('isDummy', False),
-            'creatorId': session.get('creatorId'),
-            'alert': session.get('alert')  # Add this line
-        } for session in sessions.values()]       
-         
-        return jsonify(all_sessions)
-    
 @routes_bp.route('/api/alert', methods=['POST'])
 def create_alert():
     data = request.json

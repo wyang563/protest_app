@@ -313,63 +313,63 @@ export const Map: React.FC = () => {
   // Function to fetch all sessions
   const fetchSessions = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
-      if (!response.ok) throw new Error('Failed to fetch sessions');
+      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
+      if (!Array.isArray(data)) {
+        console.error('Invalid data format received:', data);
+        return;
+      }
+  
       // Update active connections from real session data
       const realSession = data.find((s: Session) => !s.isDummy);
       if (realSession?.activeConnections !== undefined) {
         setActiveConnections(realSession.activeConnections);
       }
-
+  
       const processedIds = new Set<string>();
       
       const updatedSessions = data.reduce((acc: Session[], newSession: Session) => {
-        if (processedIds.has(newSession.id)) return acc;
+        if (!newSession.id || processedIds.has(newSession.id)) return acc;
         
         processedIds.add(newSession.id);
         
-        // For current user's session, always use local state
         if (newSession.id === sessionId.current) {
-          console.log('[Session Update] Current user state:', {
-            id: newSession.id.slice(0, 8),
-            alert: activeAlert,
-            time: new Date().toISOString()
-          });
           return [...acc, {
             ...newSession,
-            alert: activeAlert // Always use local alert state
+            alert: activeAlert
           }];
         }
         
-        // For dummy sessions, preserve existing state
-        const existingSession = sessions.find(s => s.id === newSession.id);
-        if (existingSession?.isDummy) {
-          return [...acc, {
-            ...existingSession,
-            lastUpdate: newSession.lastUpdate
-          }];
-        }
-        
-        // For other sessions, use server state
         return [...acc, newSession];
       }, []);
   
       setSessions(updatedSessions);
       
-      // Update heatmap data with proper typing
-      const heatData = updatedSessions.map((session: Session): HeatmapPoint => [
+      // Update heatmap data
+      const heatData = updatedSessions.map((session: Session): [number, number, number] => [
         session.position[0],
         session.position[1],
         session.isDummy ? 0.3 : 0.8
       ]);
       setHeatmapData(heatData);
+      
     } catch (error) {
       console.error('Error fetching sessions:', error);
     }
   };
-
+  
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {

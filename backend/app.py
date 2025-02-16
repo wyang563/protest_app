@@ -26,12 +26,12 @@ CORS(app,
 # Basic session config without security
 app.config.update(
     SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-key-change-this'),
-    SESSION_COOKIE_SECURE=True,  # For HTTPS
+    SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_DOMAIN='protest.morelos.dev',  # Your domain
-    PERMANENT_SESSION_LIFETIME=timedelta(days=7),  # Session lasts 7 days
-    SESSION_COOKIE_NAME='protest_session'  # Custom session cookie name
+    SESSION_COOKIE_DOMAIN='protest.morelos.dev',  # Update for production
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+    SESSION_COOKIE_NAME='protest_session'
 )
 
 app.register_blueprint(auth_bp)  # Was: url_prefix='/api'
