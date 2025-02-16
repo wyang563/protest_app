@@ -190,58 +190,53 @@ export const Map: React.FC = () => {
   const runAlertSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
-
+  
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
-    const simulationInterval = setInterval(() => {
-      // Each dummy tries for an alert
-      dummySessions.forEach(dummySession => {
-        // For demonstration: 20% chance each cycle
-        if (Math.random() < 0.2) {
-          const alertType = rollForAlert(simulationConfig.alertProbabilities);
-          if (!alertType) return;
-
-          // Use a unique alert id
-          const newAlert: AlertMarker = {
-            id: `${dummySession.id}-alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            position: dummySession.position,
-            type: alertType,
-            createdAt: Date.now(),
-            creatorId: dummySession.id
-          };
-
-          // POST new alert
-          fetch(`${API_URL}/api/alert`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              markerId: newAlert.id,
-              position: newAlert.position,
-              type: newAlert.type,
-              creatorId: newAlert.creatorId,
-              createdAt: newAlert.createdAt
-            })
-          })
-          .then(() => {
-            // Optionally remove or expire it after 2 seconds
-            setTimeout(() => {
-              fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
-                .then(() => {
-                  // Optionally do something else
-                });
-            }, 2000);
-          })
-          .catch(console.error);
-        }
+    
+    const simulateAlerts = () => {
+      dummySessions.forEach(dummy => {
+        const alertType = rollForAlert(simulationConfig.alertProbabilities);
+        if (!alertType) return;
+  
+        const newAlert: AlertMarker = {
+          id: `alert-${dummy.id}-${Date.now()}`,
+          position: dummy.position,
+          type: alertType,
+          createdAt: Date.now(),
+          creatorId: dummy.id
+        };
+  
+        // Create alert
+        fetch(`${API_URL}/api/alert`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newAlert)
+        })
+        .then(() => {
+          // Remove alert after 2 seconds and create new one after 3 seconds
+          setTimeout(() => {
+            fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
+              .then(() => {
+                if (simulationConfig.isRunning) {
+                  setTimeout(() => {
+                    simulateAlerts();
+                  }, 3000);
+                }
+              });
+          }, 2000);
+        })
+        .catch(console.error);
       });
-    }, 5000);
-
-    // Stop simulation after 1 minute
+    };
+  
+    // Start initial simulation
+    simulateAlerts();
+  
+    // Stop after 1 minute
     setTimeout(() => {
-      clearInterval(simulationInterval);
       setSimulationConfig(prev => ({ ...prev, isRunning: false }));
     }, 60000);
   };
-
 
   // Probability-based alert roll
   const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
@@ -408,13 +403,10 @@ export const Map: React.FC = () => {
       // Set sessions with unique IDs (back-end should generate them, but ensure no collisions)
       const mapped = data.map(session => {
         if (!session.isDummy) {
-          // Real user session
           return session;
         }
-        // If dummy, ensure we have a unique ID
-        if (!session.id.includes('dummy-')) {
-          session.id = `dummy-${session.id}`;
-        }
+        // Generate truly unique dummy IDs using timestamp and random string
+        session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         return session;
       });
       setSessions(mapped);
