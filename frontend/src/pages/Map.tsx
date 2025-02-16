@@ -617,12 +617,12 @@ export const Map: React.FC = () => {
               tap={true}
               className="z-0"
             >
-            <TileLayer
-              url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
-              className="map-tiles"
-              maxZoom={22}
-              minZoom={3}
-            />
+              <TileLayer
+                url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
+                className="map-tiles"
+                maxZoom={22}
+                minZoom={3}
+              />
               <HeatmapLayer
                 fitBoundsOnLoad
                 fitBoundsOnUpdate
@@ -633,36 +633,23 @@ export const Map: React.FC = () => {
                 {...heatmapOptions}
               />
               <MapUpdater center={position} />
-                {sessions.map((session) => {
-                  const isCurrentUser = session.id === sessionId.current;
-                  
-                  // Add debug logging for alert state
-                  console.log('[Session Alert State]', {
-                    id: session.id.slice(0, 8),
-                    isCurrentUser,
-                    hasAlert: !!session.alert,
-                    alertType: session.alert?.type,
-                    time: new Date().toISOString()
-                  });
+              {sessions && sessions.map((session) => {
+                const isCurrentUser = session.id === sessionId.current;
+                const effectiveAlert = isCurrentUser ? activeAlert : session.alert;
+                const shouldShowAlert = effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type];
 
-                  // Check for valid alert - either from local state (current user) or from server (other users)
-                  const effectiveAlert = isCurrentUser ? activeAlert : session.alert;
-                  const shouldShowAlert = effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type];
-
-                  if (shouldShowAlert) {
-                    logMarkerChange(session, 'Rendering Alert Marker');
-                    const alertConfig = ALERT_CONFIGS[effectiveAlert.type];
-
-                    return (
-                      <Marker 
-                        key={session.id}
-                        position={session.position}
-                        icon={L.divIcon({
-                          html: `<img src="${alertConfig.icon}" class="w-6 h-6" />`,
-                          className: '',
-                          iconSize: alertConfig.size as PointTuple,
-                        })}
-                      >
+                if (shouldShowAlert) {
+                  const alertConfig = ALERT_CONFIGS[effectiveAlert.type];
+                  return (
+                    <Marker 
+                      key={session.id}
+                      position={session.position}
+                      icon={L.divIcon({
+                        html: `<img src="${alertConfig.icon}" class="w-6 h-6" />`,
+                        className: '',
+                        iconSize: alertConfig.size as PointTuple,
+                      })}
+                    >
                         <Popup>
                           <div className="p-2">
                             <h3 className="font-bold mb-2">
@@ -684,7 +671,6 @@ export const Map: React.FC = () => {
                       </Marker>
                     );
                   }
-
                   // If no valid alert, render circle marker
                   logMarkerChange(session, 'Rendering Circle Marker');
                   return (
@@ -696,24 +682,24 @@ export const Map: React.FC = () => {
                       radius={isCurrentUser ? 10 : 8}
                       opacity={session.isDummy ? 0.5 : 1}
                     >
-                    <Popup>
-                      <div className="p-2">
-                        <h3 className="font-bold mb-2">
-                          {session.isDummy ? 'Simulated User' : 
-                          session.id === sessionId.current ? 'You' : 'Other Protester'}
-                        </h3>
-                        <ul className="text-sm">
-                          <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
-                          <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
-                          <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
-                          <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
-                          {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
-                        </ul>
-                      </div>
-                    </Popup>
-                  </CircleMarker>
+                      <Popup>
+                        <div className="p-2">
+                          <h3 className="font-bold mb-2">
+                            {session.isDummy ? 'Simulated User' : 
+                            session.id === sessionId.current ? 'You' : 'Other Protester'}
+                          </h3>
+                          <ul className="text-sm">
+                            <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
+                            <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
+                            <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
+                            <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
+                            {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
+                          </ul>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
                   );
-              })}
+                })}
               {alertMarkers.map(marker => (
                 <Marker
                   key={marker.id}
