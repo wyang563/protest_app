@@ -21,12 +21,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const API_URL = process.env.NODE_ENV === 'production' 
-    ? 'https://protest.morelos.dev/api'
-    : 'http://localhost:5001/api';
+    ? 'https://protest.morelos.dev'
+    : 'http://localhost:5001';
 
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${API_URL}/auth/check`, {
+      const response = await fetch(`${API_URL}/api/auth/check`, {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
@@ -41,11 +41,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user_id: data.user_id,
           username: data.username
         });
+      } else {
+        // Handle unauthorized or other errors
+        setIsAuthenticated(false);
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
+      setUser(null);
     } finally {
-      setLoading(false);
+      setLoading(false);  // Always set loading to false when done
     }
   };
 
@@ -54,11 +60,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl font-semibold text-gray-600">Loading...</div>
+      </div>
+    );
   }
 
   const login = async (username: string, password: string) => {
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await fetch(`${API_URL}/api/auth/login`, {  // Add /api prefix
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -66,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       body: JSON.stringify({ username, password }),
     });
-
+  
     if (response.ok) {
       const data = await response.json();
       setIsAuthenticated(true);
@@ -81,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signup = async (username: string, password: string) => {
-    const response = await fetch(`${API_URL}/auth/signup`, {
+    const response = await fetch(`${API_URL}/api/auth/signup`, {  // Add /api prefix
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -90,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       body: JSON.stringify({ username, password }),
     });
-    
+      
     if (response.ok) {
       const data = await response.json();
       setIsAuthenticated(true);
@@ -105,12 +115,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await fetch(`${API_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include'
-    });
-    setIsAuthenticated(false);
-    setUser(null);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Logout failed:', error);
+      throw error;
+    }
   };
 
   return (

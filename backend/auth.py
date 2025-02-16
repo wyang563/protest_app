@@ -27,7 +27,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@auth_bp.route('/auth/signup', methods=['POST'])
+@auth_bp.route('/api/auth/signup', methods=['POST'])  # Add /api prefix
 def signup():
     data = request.get_json()
     username = data.get('username')
@@ -58,7 +58,7 @@ def signup():
     except sqlite3.IntegrityError:
         return jsonify({'error': 'Username already exists'}), 409
         
-@auth_bp.route('/auth/login', methods=['POST'])
+@auth_bp.route('/api/auth/login', methods=['POST'])  # Add /api prefix
 def login():
     data = request.get_json()
     username = data.get('username')
@@ -85,12 +85,12 @@ def login():
 
     return jsonify({'error': 'Invalid credentials'}), 401
 
-@auth_bp.route('/auth/logout', methods=['POST'])  # Remove /api prefix
+@auth_bp.route('/api/auth/logout', methods=['POST'])  # Add /api prefix
 def logout():
     session.clear()
     return jsonify({'message': 'Logged out successfully'})
 
-@auth_bp.route('/auth/check', methods=['GET'])
+@auth_bp.route('/api/auth/check', methods=['GET'])  # Add /api prefix
 def check_auth():
     if 'user_id' in session:
         return jsonify({

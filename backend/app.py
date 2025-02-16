@@ -2,17 +2,46 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import whisper
 import os
-from routes import bp
+from routes import routes_bp
+from auth import auth_bp, init_auth_db
 import sqlite3
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer, util  # New import
+from datetime import timedelta
 
-app = Flask(__name__)
-CORS(app, origins=["https://protest.morelos.dev", "http://localhost:3000"])
+app = Flask(__name__) # here
 
-app.register_blueprint(bp)
+CORS(app,
+    resources={
+        r"/api/*": {
+            "origins": ["https://protest.morelos.dev", "http://localhost:3000"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True,
+            "expose_headers": ["Set-Cookie"]
+        }
+    },
+    supports_credentials=True
+)
 
-# Load the our ML models once at startup to avoid reloading on every request.
+
+# Basic session config without security
+app.config.update(
+    SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-key-change-this'),
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_DOMAIN='protest.morelos.dev',  # Update for production
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+    SESSION_COOKIE_NAME='protest_session'
+)
+
+app.register_blueprint(auth_bp)  # Was: url_prefix='/api'
+app.register_blueprint(routes_bp)  # Was: url_prefix='/api'
+
+init_auth_db()
+
+# Load the Whisper model once at startup to avoid reloading on every request.
 # You can choose a model size: tiny, base, small, medium, large.
 MODEL_TYPE = "base"
 model = whisper.load_model(MODEL_TYPE)

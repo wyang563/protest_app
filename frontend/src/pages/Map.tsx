@@ -6,12 +6,15 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap, Marker } from 're
 import { Icon, PointTuple } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+const API_URL = process.env.NODE_ENV === 'production'
+  ? 'https://protest.morelos.dev'
+  : 'http://localhost:5001';
 
 type HeatmapPoint = [number, number, number];
 
-const DEFAULT_ZOOM = 13; // Add this constant at the top with other constants
+const DEFAULT_ZOOM = 13; // Add this constant at the top with other constan
 
 const DOT_COLORS = [
   '#3B82F6', // blue
@@ -36,6 +39,23 @@ const circleMarkerStyle = {
   weight: 2,
   radius: 8,
 };
+
+interface SimulationConfig {
+  isRunning: boolean;
+  alertProbabilities: {
+    none: number;     // 50%
+    water: number;    // 28%
+    medical: number;  // 10%
+    arrest: number;   // 8%
+    stayaway: number; // 4%
+  };
+}
+
+interface ClusterInfo {
+  type: AlertType['type'];
+  position: [number, number];
+  strength: number;
+}
 
 interface AlertType {
   type: 'water' | 'medical' | 'arrest' | 'stayaway';
@@ -104,7 +124,8 @@ const MapUpdater: React.FC<{ center: [number, number] }> = ({ center }) => {
 };
 
 export const Map: React.FC = () => {
-  const { user } = useAuth(); // Add this line to get the current user
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -120,6 +141,19 @@ export const Map: React.FC = () => {
   const [heatmapData, setHeatmapData] = useState<[number, number, number][]>([]);
   const [activeAlert, setActiveAlert] = useState<AlertType | null>(null);
   const [alertMarkers, setAlertMarkers] = useState<AlertMarker[]>([]);
+  const [activeConnections, setActiveConnections] = useState<number>(0);
+  const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>({
+    isRunning: false,
+    alertProbabilities: {
+      none: 0.45,
+      water: 0.40,
+      medical: 0.04,
+      arrest: 0.1,
+      stayaway: 0.01
+    }
+  });
+  const [usedAlertPositions, setUsedAlertPositions] = useState<Set<string>>(new Set());
+  const [clusters, setClusters] = useState<ClusterInfo[]>([]);
 
   useEffect(() => {
     const cleanup = setInterval(() => {
@@ -133,12 +167,246 @@ export const Map: React.FC = () => {
   }, []);  
 
   useEffect(() => {
+    // Periodically fetch alerts
     const interval = setInterval(() => {
       fetchAlertMarkers();
     }, 2000);
-  
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    // Convert sessions to heatmap points
+    const points: [number, number, number][] = sessions.map(session => [
+      session.position[0],
+      session.position[1],
+      session.isDummy ? 0.7 : 0.7 // Lower intensity for dummy sessions
+    ]);
+    setHeatmapData(points);
+  }, [sessions]);
+  
+  useEffect(() => {
+    return () => {
+      // Notify server about disconnection
+      fetch(`${API_URL}/api/location`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionId.current,
+          position: position,
+          timestamp: 0,
+          joinedAt: new Date().toISOString(),
+          alert: null
+        }),
+      }).catch(console.error);
+    };
+  }, [position]);
+
+  useEffect(() => {
+    setSessions(prev => {
+      if (!prev.find(s => s.id === sessionId.current)) {
+        return [
+          ...prev,
+          {
+            id: sessionId.current,
+            position,
+            lastUpdate: Date.now(),
+            joinedAt: new Date().toISOString(),
+            isDummy: false,
+            alert: null
+          }
+        ];
+      }
+      return prev;
+    });
+  }, [position]);
+
+  const runClusterSimulation = () => {
+    const dummySessions = sessions.filter(s => s.isDummy);
+    if (dummySessions.length === 0) return;
+  
+    setSimulationConfig(prev => ({ ...prev, isRunning: true }));
+    setClusters([]); // Reset clusters at start
+  
+    const simulationInterval = setInterval(() => {
+      dummySessions.forEach(dummy => {
+        // Check for nearby clusters first
+        const nearbyCluster = clusters.find(cluster => {
+          const distance = Math.sqrt(
+            Math.pow(cluster.position[0] - dummy.position[0], 2) + 
+            Math.pow(cluster.position[1] - dummy.position[1], 2)
+          );
+          return distance < 0.005; // Roughly 500m radius
+        });
+  
+        // Higher chance to create alert if near cluster of same type
+        const baseChance = 0.2;
+        const clusterBonus = nearbyCluster ? 0.4 : 0;
+        const totalChance = Math.min(baseChance + clusterBonus, 0.8);
+  
+        if (Math.random() < totalChance) {
+          // If near cluster, higher chance to match its type
+          let alertType: AlertType['type'] | null;
+          if (nearbyCluster && Math.random() < 0.7) {
+            alertType = nearbyCluster.type;
+          } else {
+            alertType = rollForAlert(simulationConfig.alertProbabilities);
+          }
+  
+          if (!alertType) return;
+  
+          // Create new alert
+          const newAlert: AlertMarker = {
+            id: `cluster-alert-${dummy.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            position: dummy.position,
+            type: alertType,
+            createdAt: Date.now(),
+            creatorId: dummy.id
+          };
+  
+          // Add to clusters with random initial strength
+          setClusters(prev => [...prev, {
+            type: alertType!,
+            position: dummy.position,
+            strength: Math.random() * 0.5 + 0.5 // 0.5 to 1.0
+          }]);
+  
+          // Send alert to server
+          fetch(`${API_URL}/api/alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              markerId: newAlert.id,
+              position: newAlert.position,
+              type: newAlert.type,
+              creatorId: newAlert.creatorId,
+              createdAt: newAlert.createdAt
+            })
+          })
+          .then(() => {
+            setTimeout(() => {
+              fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
+                .then(() => {
+                  // Remove from clusters after delay
+                  setClusters(prev => 
+                    prev.filter(c => 
+                      c.position[0] !== newAlert.position[0] || 
+                      c.position[1] !== newAlert.position[1]
+                    )
+                  );
+                  
+                  // Create new alert after short delay
+                  setTimeout(() => {
+                    if (simulationConfig.isRunning) {
+                      const nextAlertType = rollForAlert(simulationConfig.alertProbabilities);
+                      if (nextAlertType) {
+                        handleAlertRequest(nextAlertType);
+                      }
+                    }
+                  }, 500);
+                })
+                .catch(console.error);
+            }, 2000);
+          })
+          .catch(console.error);
+        }
+      });
+    }, 2000);
+  
+    // Stop simulation after 1 minute
+    setTimeout(() => {
+      clearInterval(simulationInterval);
+      setSimulationConfig(prev => ({ ...prev, isRunning: false }));
+      setClusters([]); // Clear clusters
+    }, 60000);
+  };
+
+  // Core simulation function
+  const runAlertSimulation = () => {
+    const dummySessions = sessions.filter(s => s.isDummy);
+    if (dummySessions.length === 0) return;
+  
+    setSimulationConfig(prev => ({ ...prev, isRunning: true }));
+  
+    const simulationInterval = setInterval(() => {
+      dummySessions.forEach(dummy => {
+        // 20% chance for each dummy
+        if (Math.random() < 0.2) {
+          const alertType = rollForAlert(simulationConfig.alertProbabilities);
+          if (!alertType) return;
+  
+          const newAlert: AlertMarker = {
+            id: `alert-${dummy.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            position: dummy.position,
+            type: alertType,
+            createdAt: Date.now(),
+            creatorId: dummy.id
+          };
+  
+          fetch(`${API_URL}/api/alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              markerId: newAlert.id,
+              position: newAlert.position,
+              type: newAlert.type,
+              creatorId: newAlert.creatorId,
+              createdAt: newAlert.createdAt
+            })
+          })
+          .then(() => {
+            // Reduced delay - remove after 2 seconds and create new one after 0.5 second
+            setTimeout(() => {
+              fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
+                .then(() => {
+                  // Much shorter delay before potentially creating new alert
+                  setTimeout(() => {
+                    if (simulationConfig.isRunning) {
+                      // Trigger new alert check immediately
+                      const nextAlertType = rollForAlert(simulationConfig.alertProbabilities);
+                      if (nextAlertType) {
+                        handleAlertRequest(nextAlertType);
+                      }
+                    }
+                  }, 500); // Only 0.5 second gap
+                })
+                .catch(console.error);
+            }, 2000);
+          })
+          .catch(console.error);
+        }
+      });
+    }, 2000); // Reduced from 5000 to 2000ms for more frequent checks
+  
+    setTimeout(() => {
+      clearInterval(simulationInterval);
+      setSimulationConfig(prev => ({ ...prev, isRunning: false }));
+    }, 60000);
+  };
+
+  // Probability-based alert roll
+  const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
+    const rollVal = Math.random();
+    if (rollVal < probabilities.none) {
+      return null;
+    } else if (rollVal < probabilities.none + probabilities.water) {
+      return 'water';
+    } else if (rollVal < probabilities.none + probabilities.water + probabilities.medical) {
+      return 'medical';
+    } else if (rollVal < probabilities.none + probabilities.water + probabilities.medical + probabilities.arrest) {
+      return 'arrest';
+    } else {
+      return 'stayaway';
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   const logMarkerChange = (session: Session, action: string) => {
     const isCurrentUser = session.id === sessionId.current;
@@ -147,27 +415,23 @@ export const Map: React.FC = () => {
         time: new Date().toISOString(),
         sessionId: session.id.slice(0, 8),
         type: session.alert ? `Alert: ${session.alert.type}` : 'Circle',
-        position: session.position,
-        // Add debug info for alert conditions
-        alertConditions: {
-          hasAlert: !!session.alert,
-          hasAlertType: session.alert?.type,
-          configExists: session.alert?.type ? !!ALERT_CONFIGS[session.alert.type] : false,
-          fullCondition: !!(session.alert && session.alert.type && ALERT_CONFIGS[session.alert.type])
-        }
+        position: session.position
       });
     }
   };
 
+  // Utility to log session states
   const logSessionState = (msg: string, session?: Session) => {
     if (session?.id === sessionId.current) {
-      console.log(`${msg}:`, {
-        id: session.id.slice(0, 8),
-        alert: session.alert,
-        timestamp: new Date().toISOString()
+      console.log(`[Session Alert State] ${msg}`, {
+        id: session.id,
+        isCurrentUser: session.id === sessionId.current,
+        hasAlert: !!session.alert,
+        alertType: session.alert?.type,
+        time: new Date().toISOString()
       });
     }
-  };  
+  };
 
   const heatmapOptions = {
     radius: 30,           // Reduced radius for more defined hotspots
@@ -179,14 +443,14 @@ export const Map: React.FC = () => {
 
   const fetchAlertMarkers = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts`);
+      const response = await fetch(`${API_URL}/api/alerts`);
       if (!response.ok) throw new Error('Failed to fetch alerts');
       const data = await response.json();
-      setAlertMarkers(data);
+      setAlertMarkers(() => [...data]);
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
-  };  
+  };
 
   const handleAlertRequest = (type: AlertType['type']) => {
     const newAlertMarker: AlertMarker = {
@@ -197,12 +461,9 @@ export const Map: React.FC = () => {
       creatorId: sessionId.current
     };
     
-    // Send alert to server
-    fetch(`${API_BASE_URL}/alert`, {
+    fetch(`${API_URL}/api/alert`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         markerId: newAlertMarker.id,
         position: newAlertMarker.position,
@@ -212,316 +473,295 @@ export const Map: React.FC = () => {
       })
     }).then(() => fetchAlertMarkers());
   };
-  
+
+    
   const handleRemoveAlertMarker = (markerId: string) => {
-    fetch(`${API_BASE_URL}/alert/${markerId}`, {
+    fetch(`${API_URL}/api/alert/${markerId}`, {
       method: 'DELETE'
     }).then(() => fetchAlertMarkers());
   };
-    
+
   // Add handleClearAlert function
   const handleClearAlert = () => {
-    console.log('[Clear Alert]', {
-      time: new Date().toISOString(),
-      previousType: activeAlert?.type,
-      sessionId: sessionId.current.slice(0, 8)
-    });
-    
     setActiveAlert(null);
-    updateServerPosition(position, null)
-      .then(() => {
-        console.log('[Clear Alert] Server updated successfully');
-        // Only fetch if we have dummy sessions to update
-        if (sessions.some(s => s.isDummy)) {
-          fetchSessions();
-        }
-      });
+    updateServerPosition(position, null);
   };
 
-  const getSessionColor = (sessionId: string): string => {
-    const colorIndex = parseInt(sessionId, 16) % DOT_COLORS.length;
+  const getSessionColor = (sId: string): string => {
+    const colorIndex = parseInt(sId, 16) % DOT_COLORS.length;
     return DOT_COLORS[colorIndex];
   };
 
   const handleDummyCountSubmit = () => {
-    const numDummies = parseInt(dummyCount) || 0; // Convert to number, default to 0 if NaN
+    const numDummies = parseInt(dummyCount) || 0;
     setSubmittedDummyCount(numDummies);
-    fetchSessions();
+    fetchSessions(numDummies);
   };
   
   // Function to update server with position
-  const updateServerPosition = async (pos: [number, number], alert: AlertType | null = null): Promise<void> => {
+  const updateServerPosition = async (pos: [number, number], alert: AlertType | null = null) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/location`, {
+      await fetch(`${API_URL}/api/location`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: sessionId.current,
           position: pos,
           timestamp: Date.now(),
           joinedAt: new Date().toISOString(),
-          alert: alert ?? activeAlert // This will now work with the updated type
+          alert: alert
         }),
       });
-      if (!response.ok) throw new Error('Failed to update location');
     } catch (error) {
-      console.error('Error updating location:', error);
+      console.error('Failed updating server position:', error);
     }
   };
   
   // Function to fetch all sessions
-  const fetchSessions = async () => {
+  const fetchSessions = async (dummyCountParam?: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
+      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}`);
       if (!response.ok) throw new Error('Failed to fetch sessions');
-      const data = await response.json();
-      
-      const processedIds = new Set<string>();
-      
-      const updatedSessions = data.reduce((acc: Session[], newSession: Session) => {
-        if (processedIds.has(newSession.id)) return acc;
-        
-        processedIds.add(newSession.id);
-        
-        // For current user's session, always use local state
-        if (newSession.id === sessionId.current) {
-          console.log('[Session Update] Current user state:', {
-            id: newSession.id.slice(0, 8),
-            alert: activeAlert,
-            time: new Date().toISOString()
-          });
-          return [...acc, {
-            ...newSession,
-            alert: activeAlert // Always use local alert state
-          }];
+      const data: Session[] = await response.json();
+      const mapped = data.map(session => {
+        if (session.isDummy) {
+          session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         }
-        
-        // For dummy sessions, preserve existing state
-        const existingSession = sessions.find(s => s.id === newSession.id);
-        if (existingSession?.isDummy) {
-          return [...acc, {
-            ...existingSession,
-            lastUpdate: newSession.lastUpdate
-          }];
-        }
-        
-        // For other sessions, use server state
-        return [...acc, newSession];
-      }, []);
-  
-      setSessions(updatedSessions);
-      
-      // Update heatmap data with proper typing
-      const heatData = updatedSessions.map((session: Session): HeatmapPoint => [
-        session.position[0],
-        session.position[1],
-        session.isDummy ? 0.3 : 0.8
-      ]);
-      setHeatmapData(heatData);
+        return session;
+      });
+      setSessions(mapped);
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      console.error('Failed to fetch sessions:', error);
     }
   };
 
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
-      if (mounted) {
-        fetchSessions();
-      }
-    }, 1000); 
-    
+      if (!mounted) return;
+      fetchSessions(submittedDummyCount);
+    }, 2000);
+
     if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (mounted) {
-            const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-            setPosition(newPosition);
-            updateServerPosition(newPosition);
-          }
-        },
-        (error) => {
-          if (mounted) {
-            setLocationError(error.message);
-          }
-        }
-      );
-  
-      const locationInterval = setInterval(() => {
-        if (isTracking && mounted) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              if (mounted) {
-                const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-                setPosition(newPosition);
-                updateServerPosition(newPosition);
-              }
-            },
-            (error) => {
-              if (mounted) {
-                setLocationError(error.message);
-              }
-            }
-          );
-        }
-      }, 5000);
-  
-      return () => {
-        mounted = false;
-        clearInterval(locationInterval);
-        clearInterval(sessionInterval);
-        if (alertTimeoutRef.current) {
-          clearTimeout(alertTimeoutRef.current);
-        }
-      };
+      if (isTracking) {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            setPosition([latitude, longitude]);
+            updateServerPosition([latitude, longitude]);
+          },
+          (err) => {
+            console.error(err);
+            setLocationError('Unable to retrieve location.');
+          },
+          { enableHighAccuracy: true }
+        );
+      } else if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
     }
-    
+
     return () => {
       mounted = false;
       clearInterval(sessionInterval);
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
     };
-  }, [isTracking]);
-  
+  }, [isTracking, submittedDummyCount]);
+
   const handleCenterMap = () => {
     if (mapRef.current) {
-      mapRef.current.setView(position, DEFAULT_ZOOM, {
-        animate: true,
-        duration: 1
-      });
+      mapRef.current.setView(position, DEFAULT_ZOOM);
     }
   };
-  
+
   const toggleTracking = () => {
     setIsTracking(!isTracking);
   };
   
   return (
-    <div className="h-screen flex flex-col">
-      <div className="p-4 bg-gray-100">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl">Protest Map</h1>
-          {user && (
-            <div className="text-gray-600 bg-white px-4 py-2 rounded-lg shadow">
-              Logged in as: <span className="font-semibold">{user.username}</span>
+    <div className="min-h-screen bg-gray-900 text-gray-100">
+      {/* Main Container - Flex column on mobile, row on desktop */}
+      <div className="flex flex-col lg:flex-row h-screen">
+        {/* Controls Section - Full width on mobile, sidebar on desktop */}
+        <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">
+          {/* User Info & Logout - Now as a normal block */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            {user && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <span className="text-sm">
+                  <span className="text-gray-400">Logged in as:</span>{" "}
+                  <span className="font-semibold">{user.username}</span>
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm transition-colors w-full sm:w-auto"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+  
+          {/* Connection Counter */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Network Status</h3>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500"></div>
+              <span className="text-sm">
+                Active Connections: <span className="font-bold">{activeConnections}</span>
+              </span>
             </div>
-          )}
-        </div>
-        
-        {/* Location Status and Controls */}
-        <div className="mb-4">
-          <h2 className="text-xl mb-2">Location Status</h2>
-          <div className="flex items-center gap-4">
+          </div>
+  
+          {/* Map & Location Controls */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-3">Map & Location Controls</h3>
             {locationError ? (
-              <p className="text-red-500 font-medium">{locationError}</p>
+              <p className="text-red-400 text-sm mb-3">{locationError}</p>
             ) : (
-              <p className="text-green-500 font-medium">
+              <p className="text-green-400 text-sm mb-3">
                 Location: {position[0].toFixed(4)}, {position[1].toFixed(4)}
               </p>
             )}
-            <button
-              onClick={handleCenterMap}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg
-                transition-colors duration-200 ease-in-out transform hover:scale-105 
-                active:scale-95 shadow-lg focus:outline-none focus:ring-2 
-                focus:ring-blue-500 focus:ring-opacity-50"
-            >
-              Center Map
-            </button>
-            <button
-              onClick={toggleTracking}
-              className={`${
-                isTracking ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
-              } text-white px-4 py-2 rounded-lg transition-colors duration-200 ease-in-out 
-              transform hover:scale-105 active:scale-95 shadow-lg focus:outline-none focus:ring-2 
-              focus:ring-opacity-50`}
-            >
-              {isTracking ? 'Stop Tracking' : 'Start Tracking'}
-            </button>
-            <div className="flex items-center gap-2">
-              <label htmlFor="dummyCount" className="text-sm font-medium">
-                Dummy Users:
-              </label>
-              <input
-                id="dummyCount"
-                type="number"
-                min="0"
-                max="1000"
-                value={dummyCount}
-                onChange={(e) => setDummyCount(e.target.value)} // Remove parseInt
-                className="w-20 px-2 py-1 border rounded-lg"
-              />
+            <div className="flex flex-col sm:flex-row gap-2">
               <button
-                onClick={handleDummyCountSubmit}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg
-                  transition-colors duration-200 ease-in-out transform hover:scale-105 
-                  active:scale-95 shadow-lg focus:outline-none focus:ring-2 
-                  focus:ring-purple-500 focus:ring-opacity-50"
+                onClick={handleCenterMap}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg
+                  transition-colors duration-200 flex items-center justify-center gap-2"
               >
-                Add Dummies
+                <span>Center Map</span>
+              </button>
+              <button
+                onClick={toggleTracking}
+                className={`flex-1 ${
+                  isTracking ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+                } text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2`}
+              >
+                {isTracking ? 'Stop Tracking' : 'Start Tracking'}
               </button>
             </div>
           </div>
-        </div>
-      </div>
+  
+          {/* Protester Controls */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-3">Protester Controls</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(ALERT_CONFIGS).map(([type, config]) => (
+                <button
+                  key={type}
+                  onClick={() => handleAlertRequest(type as AlertType['type'])}
+                  className={`${
+                    activeAlert?.type === type ? 'ring-2 ring-white' : ''
+                  } ${
+                    type === 'water' ? 'bg-blue-600 hover:bg-blue-700' :
+                    type === 'medical' ? 'bg-red-600 hover:bg-red-700' :
+                    type === 'arrest' ? 'bg-yellow-600 hover:bg-yellow-700' :
+                    'bg-red-800 hover:bg-red-900'
+                  } text-white p-3 rounded-lg flex items-center justify-center gap-2 transition-colors`}
+                  title={config.tooltip}
+                >
+                  <img src={config.icon} alt={type} className="w-5 h-5" />
+                  <span className="text-sm">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                </button>
+              ))}
+            </div>
+            {activeAlert && (
+              <button
+                onClick={handleClearAlert}
+                className="w-full mt-2 bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg
+                  flex items-center justify-center gap-2 transition-colors"
+                title="Clear Alert"
+              >
+                Clear Alert
+              </button>
+            )}
+          </div>
+  
+          {/* Simulation Controls */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-3">Simulation Development</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Dummy Controls */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="dummyCount" className="text-xs text-gray-300 whitespace-nowrap">
+                    Dummy Users:
+                  </label>
+                  <input
+                    id="dummyCount"
+                    type="number"
+                    min="0"
+                    max="1000"
+                    value={dummyCount}
+                    onChange={(e) => setDummyCount(e.target.value)}
+                    className="w-16 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white text-xs"
+                  />
+                </div>
+                <button
+                  onClick={handleDummyCountSubmit}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg
+                    transition-colors duration-200 flex items-center justify-center text-xs"
+                >
+                  Add Dummies
+                </button>
+              </div>
 
-      <div className="flex gap-2">
-        {Object.entries(ALERT_CONFIGS).map(([type, config]) => (
-          <button
-            key={type}
-            onClick={() => handleAlertRequest(type as AlertType['type'])}
-            className={`${
-              activeAlert?.type === type 
-                ? 'ring-2 ring-white' 
-                : ''
-            } ${
-              type === 'water' ? 'bg-blue-500 hover:bg-blue-600' :
-              type === 'medical' ? 'bg-red-500 hover:bg-red-600' :
-              type === 'arrest' ? 'bg-yellow-500 hover:bg-yellow-600' :
-              'bg-red-700 hover:bg-red-800'
-            } text-white p-2 rounded-lg flex items-center gap-1`}
-            title={config.tooltip}
-          >
-            <img src={config.icon} alt={type} className="w-6 h-6" />
-            {type.charAt(0).toUpperCase() + type.slice(1)}
-          </button>
-        ))}
-          {activeAlert && (
-            <button
-              onClick={handleClearAlert}
-              className="bg-gray-500 hover:bg-gray-600 text-white p-2 rounded-lg flex items-center gap-1"
-              title="Clear Alert"
+              {/* Alert Simulation Controls */}
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={runAlertSimulation}
+                  disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
+                  className={`w-full ${
+                    simulationConfig.isRunning 
+                      ? 'bg-gray-500 cursor-not-allowed' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
+                >
+                  {simulationConfig.isRunning ? 'Running...' : 'Random Simulation'}
+                </button>
+                
+                <button
+                  onClick={runClusterSimulation}
+                  disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
+                  className={`w-full ${
+                    simulationConfig.isRunning 
+                      ? 'bg-gray-500 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
+                >
+                  {simulationConfig.isRunning ? 'Running...' : 'Cluster Simulation'}
+                </button>
+              </div>
+              </div>
+            </div>
+          </div>
+
+        {/* Map Section - Scrollable on mobile, fixed on desktop */}
+        <div className="flex-1 p-4 order-2 lg:order-1 min-h-[60vh] lg:h-full">
+          <div className="h-full rounded-lg overflow-hidden shadow-2xl relative map-container">
+            <MapContainer 
+              center={position} 
+              zoom={DEFAULT_ZOOM}
+              style={mapStyle}
+              ref={mapRef}
+              zoomControl={true}
+              attributionControl={false}
+              dragging={true}
+              scrollWheelZoom={true}
+              doubleClickZoom={true}
+              touchZoom={true}
+              tap={true}
+              className="z-0"
             >
-              Clear Alert
-            </button>
-          )}
-      </div>
-      {/* Map Section */}
-      <div className="flex-1 p-4"></div>
-        <div className="h-[600px] w-[600px] mx-auto rounded-lg overflow-hidden shadow-lg">
-          <MapContainer 
-            center={position} 
-            zoom={DEFAULT_ZOOM} // Use default zoom instead of 15
-            style={mapStyle}
-            ref={mapRef} // Fix ref assignment
-            zoomControl={true}
-            attributionControl={false}
-            dragging={true}
-            scrollWheelZoom={true}
-            doubleClickZoom={true}
-            touchZoom={true}
-            tap={true}
-          >
-            <MapUpdater center={position} />
-            <TileLayer
-              // Original URL (requires authentication):
-              url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
-              // url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              className="map-tiles"
-              maxZoom={22}
-              minZoom={3}
-            />
+              <TileLayer
+                url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
+                className="map-tiles"
+                maxZoom={22}
+                minZoom={3}
+              />
               <HeatmapLayer
                 fitBoundsOnLoad
                 fitBoundsOnUpdate
@@ -530,35 +770,21 @@ export const Map: React.FC = () => {
                 latitudeExtractor={(point: [number, number, number]) => point?.[0] ?? 0}
                 intensityExtractor={(point: [number, number, number]) => point?.[2] ?? 0}
                 {...heatmapOptions}
-              />            
-                {sessions.map((session) => {
-                  const isCurrentUser = session.id === sessionId.current;
-                  
-                  // Add debug logging for alert state
-                  console.log('[Session Alert State]', {
-                    id: session.id.slice(0, 8),
-                    isCurrentUser,
-                    hasAlert: !!session.alert,
-                    alertType: session.alert?.type,
-                    time: new Date().toISOString()
-                  });
-
-                  // Check for valid alert - either from local state (current user) or from server (other users)
-                  const effectiveAlert = isCurrentUser ? activeAlert : session.alert;
-                  const shouldShowAlert = effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type];
-
-                  if (shouldShowAlert) {
-                    logMarkerChange(session, 'Rendering Alert Marker');
-                    const alertConfig = ALERT_CONFIGS[effectiveAlert.type];
-
-                    return (
+              />
+              <MapUpdater center={position} />
+              {sessions?.map((session) => {
+                const isCurrentUser = session.id === sessionId.current;
+                const effectiveAlert = isCurrentUser ? activeAlert : session.alert;
+                
+                return (
+                  <React.Fragment key={session.id}>
+                    {effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type] ? (
                       <Marker 
-                        key={session.id}
                         position={session.position}
                         icon={L.divIcon({
-                          html: `<img src="${alertConfig.icon}" class="w-6 h-6" />`,
+                          html: `<img src="${ALERT_CONFIGS[effectiveAlert.type].icon}" class="w-6 h-6" />`,
                           className: '',
-                          iconSize: alertConfig.size as PointTuple,
+                          iconSize: ALERT_CONFIGS[effectiveAlert.type].size as PointTuple,
                         })}
                       >
                         <Popup>
@@ -574,43 +800,39 @@ export const Map: React.FC = () => {
                               <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
                               {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
                               <li className="text-red-500">
-                                <strong>{alertConfig.tooltip}</strong>
+                                <strong>{ALERT_CONFIGS[effectiveAlert.type].tooltip}</strong>
                               </li>
                             </ul>
                           </div>
                         </Popup>
                       </Marker>
-                    );
-                  }
-
-                  // If no valid alert, render circle marker
-                  logMarkerChange(session, 'Rendering Circle Marker');
-                  return (
+                    ) : (
                     <CircleMarker 
-                      key={session.id}
                       center={session.position}
                       {...circleMarkerStyle}
                       color={getSessionColor(session.id)}
                       radius={isCurrentUser ? 10 : 8}
                       opacity={session.isDummy ? 0.5 : 1}
-                    >
-                    <Popup>
-                      <div className="p-2">
-                        <h3 className="font-bold mb-2">
-                          {session.isDummy ? 'Simulated User' : 
-                          session.id === sessionId.current ? 'You' : 'Other Protester'}
-                        </h3>
-                        <ul className="text-sm">
-                          <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
-                          <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
-                          <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
-                          <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
-                          {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
-                        </ul>
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                  );
+                    >                                
+                      <Popup>
+                        <div className="p-2">
+                          <h3 className="font-bold mb-2">
+                            {session.isDummy ? 'Simulated User' : 
+                            session.id === sessionId.current ? 'You' : 'Other Protester'}
+                          </h3>
+                          <ul className="text-sm">
+                            <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
+                            <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
+                            <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
+                            <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
+                            {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
+                          </ul>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  )};
+                  </React.Fragment>
+                );
               })}
               {alertMarkers.map(marker => (
                 <Marker
@@ -641,7 +863,9 @@ export const Map: React.FC = () => {
                 </Marker>
               ))}
             </MapContainer>
+          </div>
         </div>
       </div>
+    </div>
   );
 };
