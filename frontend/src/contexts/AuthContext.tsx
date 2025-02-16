@@ -21,12 +21,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const API_URL = process.env.NODE_ENV === 'production' 
-    ? 'https://protest.morelos.dev/api'
-    : 'http://localhost:5001/api';
+    ? 'https://protest.morelos.dev'
+    : 'http://localhost:5001';
 
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${API_URL}/auth/check`, {
+      const response = await fetch(`${API_URL}/api/auth/check`, {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
@@ -104,13 +104,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = async () => {
-    await fetch(`${API_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include'
-    });
-    setIsAuthenticated(false);
-    setUser(null);
+const logout = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Logout failed:', error);
+      throw error;
+    }
   };
 
   return (

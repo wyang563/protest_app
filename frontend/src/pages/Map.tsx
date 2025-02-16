@@ -6,8 +6,12 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap, Marker } from 're
 import { Icon, PointTuple } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://protest.morelos.dev'
+  : 'http://localhost:5001';
 
 type HeatmapPoint = [number, number, number];
 
@@ -104,7 +108,8 @@ const MapUpdater: React.FC<{ center: [number, number] }> = ({ center }) => {
 };
 
 export const Map: React.FC = () => {
-  const { user } = useAuth(); // Add this line to get the current user
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -139,6 +144,15 @@ export const Map: React.FC = () => {
   
     return () => clearInterval(interval);
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   const logMarkerChange = (session: Session, action: string) => {
     const isCurrentUser = session.id === sessionId.current;
@@ -250,9 +264,9 @@ export const Map: React.FC = () => {
   };
   
   // Function to update server with position
-  const updateServerPosition = async (pos: [number, number], alert: AlertType | null = null): Promise<void> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/location`, {
+const updateServerPosition = async (pos: [number, number], alert: AlertType | null = null) => {
+  try {
+    const response = await fetch(`${API_URL}/api/location`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -272,9 +286,9 @@ export const Map: React.FC = () => {
   };
   
   // Function to fetch all sessions
-  const fetchSessions = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
+const fetchSessions = async () => {
+  try {
+    const response = await fetch(`${API_URL}/api/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`);
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data = await response.json();
       
@@ -398,17 +412,25 @@ export const Map: React.FC = () => {
   };
   
   return (
-    <div className="h-screen flex flex-col">
-      <div className="p-4 bg-gray-100">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl">Protest Map</h1>
-          {user && (
-            <div className="text-gray-600 bg-white px-4 py-2 rounded-lg shadow">
-              Logged in as: <span className="font-semibold">{user.username}</span>
+      <div className="h-screen flex flex-col">
+        <div className="p-4 bg-gray-100">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl">Protest Map</h1>
+            <div className="flex items-center gap-4">
+              {user && (
+                <div className="text-gray-600 bg-white px-4 py-2 rounded-lg shadow flex items-center gap-4">
+                  <span>Logged in as: <span className="font-semibold">{user.username}</span></span>
+                  <button
+                    onClick={handleLogout}
+                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        
+          </div>
+          
         {/* Location Status and Controls */}
         <div className="mb-4">
           <h2 className="text-xl mb-2">Location Status</h2>

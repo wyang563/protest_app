@@ -7,7 +7,7 @@ from auth import auth_bp, init_auth_db
 from routes import routes_bp
 import sqlite3
 
-app = Flask(__name__)
+app = Flask(__name__) # here
 
 CORS(app,
     resources={
@@ -34,8 +34,8 @@ app.config.update(
     SESSION_COOKIE_NAME='protest_session'  # Custom session cookie name
 )
 
-app.register_blueprint(auth_bp, url_prefix='/api')
-app.register_blueprint(routes_bp, url_prefix='/api')
+app.register_blueprint(auth_bp)  # Was: url_prefix='/api'
+app.register_blueprint(routes_bp)  # Was: url_prefix='/api'
 
 init_auth_db()
 
