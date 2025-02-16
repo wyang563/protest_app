@@ -24,7 +24,6 @@ node_modules/
 .env.test.local
 .env.production.local
 /radio_stream/__pycache__
-/backend/transcriptions.db
 
 npm-debug.log*
 yarn-debug.log*
