@@ -158,26 +158,18 @@ export const Map: React.FC = () => {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`${API_URL}/api/sessions`, {
-          credentials: 'include'
-        });
+        const response = await fetch(`${API_URL}/api/activeConnections`, { credentials: 'include' });
         if (response.ok) {
           const data = await response.json();
-          // Count non-dummy active sessions
-          const activeCount = data.filter((session: Session) => 
-            !session.isDummy && 
-            Date.now() - session.lastUpdate < 30000
-          ).length;
-          setActiveConnections(activeCount);
+          setActiveConnections(data.active);
         }
       } catch (error) {
         console.error('Failed to fetch active connections:', error);
       }
     }, 3000);
-  
+
     return () => clearInterval(interval);
   }, []);
-
   useEffect(() => {
     if (isTracking) {
       // Get initial position
@@ -692,8 +684,7 @@ export const Map: React.FC = () => {
       {/* Main Container - Flex column on mobile, row on desktop */}
       <div className="flex flex-col lg:flex-row h-screen">
         {/* Controls Section - Full width on mobile, sidebar on desktop */}
-        <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">
-          {/* User Info & Logout - Now as a normal block */}
+        <div className="w-full lg:w-96 flex-none overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">          {/* User Info & Logout - Now as a normal block */}
           <div className="bg-gray-700 p-4 rounded-lg">
             {user && (
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
