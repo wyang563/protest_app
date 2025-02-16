@@ -139,11 +139,11 @@ export const Map: React.FC = () => {
   const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>({
     isRunning: false,
     alertProbabilities: {
-      none: 0.50,
-      water: 0.28,
-      medical: 0.10,
-      arrest: 0.08,
-      stayaway: 0.04
+      none: 0.45,
+      water: 0.40,
+      medical: 0.04,
+      arrest: 0.1,
+      stayaway: 0.01
     }
   });
   const [usedAlertPositions, setUsedAlertPositions] = useState<Set<string>>(new Set());
@@ -166,6 +166,16 @@ export const Map: React.FC = () => {
     }, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    // Convert sessions to heatmap points
+    const points: [number, number, number][] = sessions.map(session => [
+      session.position[0],
+      session.position[1],
+      session.isDummy ? 0.7 : 0.7 // Lower intensity for dummy sessions
+    ]);
+    setHeatmapData(points);
+  }, [sessions]);
   
   useEffect(() => {
     return () => {
@@ -188,17 +198,16 @@ export const Map: React.FC = () => {
   const runAlertSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
-
+  
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
-
-    // Trigger alerts every 5 seconds
+  
     const simulationInterval = setInterval(() => {
       dummySessions.forEach(dummy => {
-        // 20% chance
+        // 20% chance for each dummy
         if (Math.random() < 0.2) {
           const alertType = rollForAlert(simulationConfig.alertProbabilities);
           if (!alertType) return;
-
+  
           const newAlert: AlertMarker = {
             id: `alert-${dummy.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             position: dummy.position,
@@ -206,7 +215,7 @@ export const Map: React.FC = () => {
             createdAt: Date.now(),
             creatorId: dummy.id
           };
-
+  
           fetch(`${API_URL}/api/alert`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -219,18 +228,29 @@ export const Map: React.FC = () => {
             })
           })
           .then(() => {
-            // Remove each new alert after 2 seconds
+            // Reduced delay - remove after 2 seconds and create new one after 0.5 second
             setTimeout(() => {
               fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
+                .then(() => {
+                  // Much shorter delay before potentially creating new alert
+                  setTimeout(() => {
+                    if (simulationConfig.isRunning) {
+                      // Trigger new alert check immediately
+                      const nextAlertType = rollForAlert(simulationConfig.alertProbabilities);
+                      if (nextAlertType) {
+                        handleAlertRequest(nextAlertType);
+                      }
+                    }
+                  }, 500); // Only 0.5 second gap
+                })
                 .catch(console.error);
             }, 2000);
           })
           .catch(console.error);
         }
       });
-    }, 5000);
-
-    // Stop after 1 minute
+    }, 2000); // Reduced from 5000 to 2000ms for more frequent checks
+  
     setTimeout(() => {
       clearInterval(simulationInterval);
       setSimulationConfig(prev => ({ ...prev, isRunning: false }));
