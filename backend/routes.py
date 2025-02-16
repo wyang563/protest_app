@@ -12,6 +12,9 @@ bp = Blueprint('routes', __name__)
 sessions = {}
 session_lock = threading.Lock()
 
+alert_markers = {}
+alert_lock = threading.Lock()
+
 def generate_random_coordinates(center: tuple[float, float], min_distance: float, max_distance: float, count: int) -> list:
     """Generate random coordinates within a radius range from center point"""
     dummy_positions = []
@@ -57,25 +60,27 @@ def update_location():
     position = data.get('position')
     timestamp = data.get('timestamp')
     joined_at = data.get('joinedAt', datetime.now().isoformat())
+    alert = data.get('alert')  # Add this line
 
     if not all([session_id, position, timestamp]):
         return jsonify({'error': 'Missing required fields'}), 400
 
     with session_lock:
-        # If this is a new session, store the original join time
         if session_id not in sessions:
             sessions[session_id] = {
                 'id': session_id,
                 'position': position,
                 'timestamp': timestamp,
                 'joinedAt': joined_at,
-                'ip': request.remote_addr
+                'ip': request.remote_addr,
+                'alert': alert  # Add this line
             }
         else:
-            # Update only position and timestamp for existing sessions
+            # Update position, timestamp and alert for existing sessions
             sessions[session_id].update({
                 'position': position,
-                'timestamp': timestamp
+                'timestamp': timestamp,
+                'alert': alert  # Add this line
             })
 
     return jsonify({'success': True})
@@ -83,17 +88,19 @@ def update_location():
 @bp.route('/api/sessions', methods=['GET'])
 def get_sessions():
     dummy_count = request.args.get('dummy_count', default=0, type=int)
-    creator_id = request.args.get('creator_id')  # Get the creator's session ID
+    creator_id = request.args.get('creator_id')
     
     with session_lock:
-        # Get real sessions
+        # Get real sessions with their alerts
         real_sessions = [{
             'id': session['id'],
             'position': session['position'],
             'lastUpdate': session['timestamp'],
             'joinedAt': session['joinedAt'],
             'ip': session['ip'],
-            'isDummy': False
+            'isDummy': False,
+            'alert': session.get('alert'),  # Preserve alerts
+            'creatorId': session.get('creatorId')
         } for session in sessions.values() if not session.get('isDummy', False)]
         
         # Handle dummy sessions
@@ -117,8 +124,8 @@ def get_sessions():
             # Generate new dummy positions
             dummy_positions = generate_random_coordinates(
                 center=tuple(center_of_mass),
-                min_distance=5,    # Minimum 5 meters
-                max_distance=200,  # Maximum 200 meters
+                min_distance=30,    # Minimum 5 meters
+                max_distance=300,  # Maximum 200 meters
                 count=dummy_count
             )
             
@@ -147,7 +154,66 @@ def get_sessions():
             'joinedAt': session['joinedAt'],
             'ip': session['ip'],
             'isDummy': session.get('isDummy', False),
-            'creatorId': session.get('creatorId')
-        } for session in sessions.values()]
-        
+            'creatorId': session.get('creatorId'),
+            'alert': session.get('alert')  # Add this line
+        } for session in sessions.values()]       
+         
         return jsonify(all_sessions)
+    
+@bp.route('/api/alert', methods=['POST'])
+def create_alert():
+    data = request.json
+    marker_id = data.get('markerId')
+    position = data.get('position')
+    alert_type = data.get('type')
+    creator_id = data.get('creatorId')
+    created_at = data.get('createdAt')
+
+    with alert_lock:
+        alert_markers[marker_id] = {
+            'id': marker_id,
+            'position': position,
+            'type': alert_type,
+            'creatorId': creator_id,
+            'createdAt': created_at
+        }
+    
+    return jsonify({'success': True})
+
+@bp.route('/api/alert/<marker_id>', methods=['DELETE'])
+def remove_alert(marker_id):
+    with alert_lock:
+        if marker_id in alert_markers:
+            del alert_markers[marker_id]
+    
+    return jsonify({'success': True})
+
+@bp.route('/api/alerts', methods=['GET'])
+def get_alerts():
+    current_time = time.time() * 1000
+    
+    with alert_lock:
+        # Filter out expired alerts (older than 30 seconds)
+        valid_alerts = [
+            alert for alert in alert_markers.values()
+            if current_time - alert['createdAt'] < 30000
+        ]
+    
+    return jsonify(valid_alerts)
+
+# Add cleanup function for old alerts
+def cleanup_old_alerts():
+    while True:
+        current_time = time.time() * 1000
+        with alert_lock:
+            markers_to_remove = [
+                marker_id for marker_id, alert in alert_markers.items()
+                if current_time - alert['createdAt'] > 30000
+            ]
+            for marker_id in markers_to_remove:
+                del alert_markers[marker_id]
+        time.sleep(10)
+
+# Start alert cleanup thread
+alert_cleanup_thread = threading.Thread(target=cleanup_old_alerts, daemon=True)
+alert_cleanup_thread.start()
