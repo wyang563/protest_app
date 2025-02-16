@@ -11,7 +11,7 @@ interface Transcription {
   text: string;
 }
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 const HeadRadio: React.FC = () => {
   const { user, logout } = useAuth();
@@ -20,13 +20,6 @@ const HeadRadio: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [userTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
-
-  // Redirect to login if user is not authenticated
-  useEffect(() => {
-    if (!user) {
-      navigate('/login');
-    }
-  }, [user, navigate]);
 
   // Fetch transcriptions
   useEffect(() => {

@@ -49,7 +49,7 @@ classifier = pipeline("text-classification", model="martin-ha/toxic-comment-mode
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Load the DistilBERT model once at startup to avoid reloading on every request.
-@app.route('/api/sentiment_analysis', methods=['GET'])
+@app.route('/sentiment_analysis', methods=['GET'])
 @cross_origin(origin="https://protest.morelos.dev")
 def sentiment_analysis():
     """
@@ -90,7 +90,7 @@ def sentiment_analysis():
         "similarity_confidence": similarity_confidence
     })
 
-@app.route('/api/query', methods=['GET'])
+@app.route('/query', methods=['GET'])
 @cross_origin(origin="https://protest.morelos.dev")
 def query_transcriptions_db():
     """
@@ -130,7 +130,7 @@ def query_transcriptions_db():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/range_transcriptions', methods=['GET'])
+@app.route('/range_transcriptions', methods=['GET'])
 @cross_origin(origin="https://protest.morelos.dev")
 def get_transcriptions():
     """
@@ -180,7 +180,7 @@ def get_transcriptions():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/transcribe', methods=['POST'])
+@app.route('/transcribe', methods=['POST'])
 @cross_origin(origin="https://protest.morelos.dev")
 def transcribe_audio():
     """
@@ -209,7 +209,7 @@ def transcribe_audio():
     # 5. Return the transcription
     return jsonify({"transcription": text})
 
-if __name__ == '__main__':
+def init_transcription_db():
     # Create database if it doesn't already exist
     db_file = "transcriptions.db"
     conn = sqlite3.connect(db_file)
@@ -224,5 +224,6 @@ if __name__ == '__main__':
     """)
     conn.commit()
 
+if __name__ == '__main__':
     # Run on port 5000 so React (port 3000) can access it
     app.run(host='0.0.0.0', port=5001, debug=True)
