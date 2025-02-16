@@ -1,0 +1,21 @@
+[build]
+  command = "npm install --prefix frontend && npm run build --prefix frontend && ./start_backend.sh"
+  publish = "frontend/build"
+
+[context.production.environment]
+  PYTHON_VERSION = "3.10"
+
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+
+[dev]
+  command = "npm start --prefix frontend"
+
+[functions]
+  directory = "backend"
+
+[[redirects]]
+  from = "/api/*"
+  to = "http://localhost:5000/:splat"
+  status = 200
+  force = true
