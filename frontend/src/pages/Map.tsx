@@ -42,7 +42,6 @@ const circleMarkerStyle = {
 
 interface SimulationConfig {
   isRunning: boolean;
-  direction: number;  // 0-360 degrees
   alertProbabilities: {
     none: number;     // 50%
     water: number;    // 28%
@@ -139,7 +138,6 @@ export const Map: React.FC = () => {
   const [activeConnections, setActiveConnections] = useState<number>(0);
   const [simulationConfig, setSimulationConfig] = useState<SimulationConfig>({
     isRunning: false,
-    direction: 0,
     alertProbabilities: {
       none: 0.50,
       water: 0.28,
@@ -148,7 +146,6 @@ export const Map: React.FC = () => {
       stayaway: 0.04
     }
   });
-  const [directionInput, setDirectionInput] = useState<string>('0');
 
   useEffect(() => {
     const cleanup = setInterval(() => {
@@ -195,29 +192,11 @@ export const Map: React.FC = () => {
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
     
     const simulationInterval = setInterval(() => {
-      // Process each dummy session independently
       dummySessions.forEach(dummySession => {
-        // Calculate angle between dummy and center position
-        const angle = Math.atan2(
-          dummySession.position[1] - position[1],
-          dummySession.position[0] - position[0]
-        ) * (180 / Math.PI);
-        
-        // Normalize angles to 0-360
-        const normalizedAngle = (angle + 360) % 360;
-        const targetDirection = simulationConfig.direction;
-        const angleDiff = Math.abs(normalizedAngle - targetDirection);
-        
-        // Consider positions within ±45° of target direction as "in direction"
-        const isInDirection = angleDiff <= 45 || angleDiff >= 315;
-        
-        // Roll for alert chance (20% per 5 seconds for each dummy)
-        // Apply directional bias - if in direction, higher chance (95%) to trigger alert check
-        const shouldCheckAlert = isInDirection ? Math.random() < 0.95 : Math.random() < 0.05;
-        
-        if (shouldCheckAlert) {
+        // 20% chance to attempt alert creation per dummy every 5 seconds
+        if (Math.random() < 0.2) {
           const alertType = rollForAlert(simulationConfig.alertProbabilities);
-          if (!alertType) return; // Skip if no alert (50% chance)
+          if (!alertType) return;
           
           const newAlert: AlertMarker = {
             id: crypto.randomUUID(),
@@ -246,19 +225,6 @@ export const Map: React.FC = () => {
     }, 60000);
   };
     
-  const calculateBiasedPosition = (
-    basePosition: [number, number], 
-    direction: number,
-    dummySessions: Session[]
-  ): [number, number] => {
-    // Select a random dummy session
-    const randomDummy = dummySessions[Math.floor(Math.random() * dummySessions.length)];
-    if (!randomDummy) return basePosition;
-  
-    // Use the dummy's position
-    return randomDummy.position;
-  };
-  
   const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
     const roll = Math.random();
     
@@ -685,28 +651,8 @@ export const Map: React.FC = () => {
 
               {/* Alert Simulation Controls */}
               <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <label htmlFor="direction" className="text-xs text-gray-300 whitespace-nowrap">
-                    Direction:
-                  </label>
-                  <input
-                    id="direction"
-                    type="number"
-                    min="0"
-                    max="360"
-                    value={directionInput}
-                    onChange={(e) => setDirectionInput(e.target.value)}
-                    className="w-16 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white text-xs"
-                  />
-                </div>
                 <button
-                  onClick={() => {
-                    setSimulationConfig(prev => ({
-                      ...prev,
-                      direction: parseInt(directionInput) || 0
-                    }));
-                    runAlertSimulation();
-                  }}
+                  onClick={runAlertSimulation}
                   disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
                   className={`w-full ${
                     simulationConfig.isRunning 
