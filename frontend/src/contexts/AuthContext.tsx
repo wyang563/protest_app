@@ -25,40 +25,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     : 'http://localhost:5001/api';
 
   const checkAuth = async () => {
-      try {
-        const response = await fetch(`${API_URL}/auth/check`, {
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setIsAuthenticated(true);
-          setUser({
-            user_id: data.user_id,
-            username: data.username
-          });
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-  
-    useEffect(() => {
-      checkAuth();
-    }, []);
-  
-    if (loading) {
-      return <div>Loading...</div>;
-    }
-  
-  // Remove /api prefix since it's already in the routes
-  const checkAuth = async () => {
     try {
       const response = await fetch(`${API_URL}/auth/check`, {
         credentials: 'include',
@@ -67,6 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           'Content-Type': 'application/json'
         }
       });
+      
       if (response.ok) {
         const data = await response.json();
         setIsAuthenticated(true);
@@ -77,9 +44,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+    } finally {
+      setLoading(false);
     }
   };
-  
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
   const login = async (username: string, password: string) => {
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
@@ -89,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       body: JSON.stringify({ username, password }),
     });
-  
+
     if (response.ok) {
       const data = await response.json();
       setIsAuthenticated(true);
@@ -102,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(error.error);
     }
   };
-  
+
   const signup = async (username: string, password: string) => {
     const response = await fetch(`${API_URL}/auth/signup`, {
       method: 'POST',
@@ -126,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(error.error);
     }
   };
-  
+
   const logout = async () => {
     await fetch(`${API_URL}/auth/logout`, {
       method: 'POST',
