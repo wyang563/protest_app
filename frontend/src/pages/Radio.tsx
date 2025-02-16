@@ -20,6 +20,17 @@ function getSentiment(radioStream: string): string {
   return "advancing";
 }
 
+function utcToLocalString(utcString: string, timeZone: string): string {
+  const dateObj = new Date(utcString);
+  return dateObj.toLocaleString('en-US', { timeZone });
+}
+
+function localToUTCString(localDateTime: string): string | null {
+  if (!localDateTime) return null;
+  const d = new Date(localDateTime);
+  return d.toISOString(); // from local to UTC
+}
+
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 const Radio: React.FC = () => {
@@ -32,6 +43,10 @@ const Radio: React.FC = () => {
   // For time-range queries
   const [startTime, setStartTime] = useState<string>('');
   const [endTime, setEndTime] = useState<string>('');
+
+  const [userTimeZone, setUserTimeZone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
 
   // 1) Fetch distinct radio streams on mount
   useEffect(() => {
@@ -71,8 +86,10 @@ const Radio: React.FC = () => {
     try {
       // We'll use the new /api/transcriptions endpoint
       const params: any = { radio_stream: selectedSource };
-      if (startTime) params.start_time = startTime;
-      if (endTime) params.end_time = endTime;
+      const utcStart = localToUTCString(startTime);
+      const utcEnd = localToUTCString(endTime);
+      if (startTime) params.start_time = utcStart;
+      if (endTime) params.end_time = utcEnd;
 
       const response = await axios.get(`${API_BASE_URL}/range_transcriptions`, { params });
       setTranscriptions(response.data);
@@ -118,6 +135,9 @@ const Radio: React.FC = () => {
       </div>
 
       {/*  B) Time Range Inputs */}
+      <div style={{ marginTop: '1rem' }}>
+        <label>Detected Time Zone: {userTimeZone}</label>
+      </div>
       <div className="row mb-4">
         <div className="col-md-3">
           <label>Start Time:</label>
@@ -164,7 +184,7 @@ const Radio: React.FC = () => {
                   border: '1px solid #ddd'
                 }}
               >
-                <strong>Time:</strong> {item.start_time} <br />
+                <strong>Time:</strong> {utcToLocalString(item.start_time + 'Z', userTimeZone)} <br />
                 <strong>Text:</strong> {item.text}
               </div>
             ))}

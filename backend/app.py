@@ -93,6 +93,7 @@ def get_transcriptions():
             sql += " AND start_time <= ?"
             params.append(end_time)
 
+        sql += " ORDER BY id DESC"
         # Finally, run
         cursor.execute(sql, params)
         rows = cursor.fetchall()
