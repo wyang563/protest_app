@@ -285,7 +285,8 @@ useEffect(() => {
 
   useEffect(() => {
     setSessions(prev => {
-      if (!prev.find(s => s.id === sessionId.current)) {
+      const hasCurrentUser = prev.some(s => s.id === sessionId.current);
+      if (!hasCurrentUser) {
         return [
           ...prev,
           {
@@ -298,7 +299,11 @@ useEffect(() => {
           }
         ];
       }
-      return prev;
+      return prev.map(s => 
+        s.id === sessionId.current 
+          ? { ...s, position, lastUpdate: Date.now() }
+          : s
+      );
     });
   }, [position]);
 
@@ -602,28 +607,44 @@ useEffect(() => {
   // Function to fetch all sessions
   const fetchSessions = async (dummyCountParam?: number) => {
     try {
-      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}`);
+      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}`, {
+        credentials: 'include'  // Add this to ensure cookies are sent
+      });
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data: Session[] = await response.json();
       
       setSessions(prev => {
+        // Find current user's session
         const currentUserSession = prev.find(s => s.id === sessionId.current);
-        const otherSessions = data.map(session => {
+        
+        // Process incoming sessions
+        const processedSessions = data.map(session => {
+          // Generate unique IDs only for dummy sessions
           if (session.isDummy) {
-            session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            return {
+              ...session,
+              id: `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            };
           }
           return session;
         });
-        
-        return currentUserSession 
-          ? [currentUserSession, ...otherSessions.filter(s => s.id !== sessionId.current)]
-          : otherSessions;
+  
+        // Combine current user session with other sessions
+        if (currentUserSession) {
+          return [
+            currentUserSession,
+            ...processedSessions.filter(s => s.id !== sessionId.current)
+          ];
+        }
+  
+        // If no current user session, just return processed sessions
+        return processedSessions;
       });
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
   };
-  
+
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
