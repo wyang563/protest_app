@@ -292,7 +292,7 @@ export const Map: React.FC = () => {
       );
     });
   }, [position, isTracking]); // Add isTracking to dependencies
-  
+
   const runClusterSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
@@ -700,11 +700,11 @@ export const Map: React.FC = () => {
   };
 
   return (
-    <div className="p-4 min-h-screen bg-gray-900 text-gray-100 md:p-16">
-      <div className="flex flex-col lg:flex-row rounded-2xl gap-4">
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-16">
+      <div className="flex flex-col lg:flex-row gap-4 h-full">
         {/* Controls Section */}
-        <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2 rounded-2xl">
-          {/* Top Bar with Login Info and Network Status */}
+        <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 rounded-2xl">
+        {/* Top Bar with Login Info and Network Status */}
           <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-lg">
             {/* Login Info - Compact */}
             {user && (
@@ -860,13 +860,18 @@ export const Map: React.FC = () => {
   
         {/* Map Section - Square on mobile, flex on desktop */}
         <div className="w-full lg:flex-1">
-          <div className="aspect-square lg:aspect-auto lg:h-[calc(100vh-8rem)] bg-gray-800 rounded-2xl overflow-hidden">
+          <div className="aspect-square lg:aspect-none lg:h-[80vh] bg-gray-800 rounded-2xl overflow-hidden relative">
             <MapContainer 
               center={position} 
               zoom={DEFAULT_ZOOM}
               style={{
                 width: '100%',
-                height: '100%'
+                height: '100%',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0
               }}
               ref={mapRef}
               zoomControl={true}
