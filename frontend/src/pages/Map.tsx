@@ -8,7 +8,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = process.env.NODE_ENV === 'production' 
+const API_URL = process.env.NODE_ENV === 'production'
   ? 'https://protest.morelos.dev'
   : 'http://localhost:5001';
 
@@ -186,48 +186,55 @@ export const Map: React.FC = () => {
     };
   }, []);
 
+  // Core simulation function
   const runAlertSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
-    
+
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
-    
     const simulationInterval = setInterval(() => {
-      // Process all dummy sessions
+      // Each dummy tries for an alert
       dummySessions.forEach(dummySession => {
-        // Get random alert type based on probability distribution
-        const alertType = rollForAlert(simulationConfig.alertProbabilities);
-        if (!alertType) return;
-        
-        // Create unique alert with dummy's unique ID
-        const newAlert: AlertMarker = {
-          id: `${dummySession.id}-alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          position: dummySession.position,
-          type: alertType,
-          createdAt: Date.now(),
-          creatorId: dummySession.id
-        };
-        
-        // Send alert to server
-        fetch(`${API_URL}/api/alert`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(newAlert)
-        })
-        .then(() => {
-          // Remove alert after 2 seconds
-          setTimeout(() => {
-            fetch(`${API_URL}/api/alert/${newAlert.id}`, {
-              method: 'DELETE'
-            });
-          }, 2000);
-        })
-        .catch(console.error);
+        // For demonstration: 20% chance each cycle
+        if (Math.random() < 0.2) {
+          const alertType = rollForAlert(simulationConfig.alertProbabilities);
+          if (!alertType) return;
+
+          // Use a unique alert id
+          const newAlert: AlertMarker = {
+            id: `${dummySession.id}-alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            position: dummySession.position,
+            type: alertType,
+            createdAt: Date.now(),
+            creatorId: dummySession.id
+          };
+
+          // POST new alert
+          fetch(`${API_URL}/api/alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              markerId: newAlert.id,
+              position: newAlert.position,
+              type: newAlert.type,
+              creatorId: newAlert.creatorId,
+              createdAt: newAlert.createdAt
+            })
+          })
+          .then(() => {
+            // Optionally remove or expire it after 2 seconds
+            setTimeout(() => {
+              fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
+                .then(() => {
+                  // Optionally do something else
+                });
+            }, 2000);
+          })
+          .catch(console.error);
+        }
       });
     }, 5000);
-    
+
     // Stop simulation after 1 minute
     setTimeout(() => {
       clearInterval(simulationInterval);
@@ -235,20 +242,20 @@ export const Map: React.FC = () => {
     }, 60000);
   };
 
+
+  // Probability-based alert roll
   const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
-    const roll = Math.random();
-    
-    // Using cumulative probability
-    if (roll < probabilities.none) {
-      return null;  // 50% chance of no alert
-    } else if (roll < probabilities.none + probabilities.water) {
-      return 'water';  // 28% chance of water
-    } else if (roll < probabilities.none + probabilities.water + probabilities.medical) {
-      return 'medical';  // 10% chance of medical
-    } else if (roll < probabilities.none + probabilities.water + probabilities.medical + probabilities.arrest) {
-      return 'arrest';  // 8% chance of arrest
+    const rollVal = Math.random();
+    if (rollVal < probabilities.none) {
+      return null; // 50% chance no alert
+    } else if (rollVal < probabilities.none + probabilities.water) {
+      return 'water';
+    } else if (rollVal < probabilities.none + probabilities.water + probabilities.medical) {
+      return 'medical';
+    } else if (rollVal < probabilities.none + probabilities.water + probabilities.medical + probabilities.arrest) {
+      return 'arrest';
     } else {
-      return 'stayaway';  // 4% chance of stayaway
+      return 'stayaway';
     }
   };
 
@@ -280,15 +287,18 @@ export const Map: React.FC = () => {
     }
   };
 
+  // Utility to log session states
   const logSessionState = (msg: string, session?: Session) => {
     if (session?.id === sessionId.current) {
-      console.log(`${msg}:`, {
-        id: session.id.slice(0, 8),
-        alert: session.alert,
-        timestamp: new Date().toISOString()
+      console.log(`[Session Alert State] ${msg}`, {
+        id: session.id,
+        isCurrentUser: session.id === sessionId.current,
+        hasAlert: !!session.alert,
+        alertType: session.alert?.type,
+        time: new Date().toISOString()
       });
     }
-  };  
+  };
 
   const heatmapOptions = {
     radius: 30,           // Reduced radius for more defined hotspots
@@ -303,17 +313,7 @@ export const Map: React.FC = () => {
       const response = await fetch(`${API_URL}/api/alerts`);
       if (!response.ok) throw new Error('Failed to fetch alerts');
       const data = await response.json();
-
-      // Update markers, maintaining existing ones that haven't expired
-      setAlertMarkers(prev => {
-        const now = Date.now();
-        const validPrevMarkers = prev.filter(marker => 
-          now - marker.createdAt < 2000 && // Keep markers less than 2 seconds old
-          !data.some((newMarker: AlertMarker) => newMarker.id === marker.id) // Remove if in new data
-        );
-
-        return [...validPrevMarkers, ...data];
-      });
+      setAlertMarkers(prev => [...data]);
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
@@ -330,9 +330,7 @@ export const Map: React.FC = () => {
     
     fetch(`${API_URL}/api/alert`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         markerId: newAlertMarker.id,
         position: newAlertMarker.position,
@@ -342,6 +340,7 @@ export const Map: React.FC = () => {
       })
     }).then(() => fetchAlertMarkers());
   };
+
     
   const handleRemoveAlertMarker = (markerId: string) => {
     fetch(`${API_URL}/api/alert/${markerId}`, {
@@ -361,181 +360,115 @@ export const Map: React.FC = () => {
     updateServerPosition(position, null)
       .then(() => {
         console.log('[Clear Alert] Server updated successfully');
-        // Only fetch if we have dummy sessions to update
+        // Only fetch if we have dummy sessions
         if (sessions.some(s => s.isDummy)) {
           fetchSessions();
         }
       });
   };
 
-  const getSessionColor = (sessionId: string): string => {
-    const colorIndex = parseInt(sessionId, 16) % DOT_COLORS.length;
+  const getSessionColor = (sId: string): string => {
+    // Use parseInt with base 16, mod by color count
+    const colorIndex = parseInt(sId, 16) % DOT_COLORS.length;
     return DOT_COLORS[colorIndex];
   };
 
   const handleDummyCountSubmit = () => {
-    const numDummies = parseInt(dummyCount) || 0; // Convert to number, default to 0 if NaN
+    const numDummies = parseInt(dummyCount) || 0;
     setSubmittedDummyCount(numDummies);
-    fetchSessions();
+    fetchSessions(numDummies); // Pass a count
   };
   
   // Function to update server with position
   const updateServerPosition = async (pos: [number, number], alert: AlertType | null = null) => {
     try {
-      const response = await fetch(`${API_URL}/api/location`, {
+      await fetch(`${API_URL}/api/location`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: sessionId.current,
           position: pos,
           timestamp: Date.now(),
           joinedAt: new Date().toISOString(),
-          alert: alert ?? activeAlert
+          alert: alert
         }),
       });
-      
-      if (!response.ok) throw new Error('Failed to update location');
-      
-      const data = await response.json();
-      if (data.activeConnections !== undefined) {
-        setActiveConnections(data.activeConnections);
-      }
-      
     } catch (error) {
-      console.error('Error updating location:', error);
+      console.error('Failed updating server position:', error);
     }
   };
   
   // Function to fetch all sessions
-  const fetchSessions = async () => {
+  const fetchSessions = async (dummyCountParam?: number) => {
     try {
-      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${submittedDummyCount}&creator_id=${sessionId.current}`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+      // For example, pass dummy_count as query param
+      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}`);
+      if (!response.ok) throw new Error('Failed to fetch sessions');
+      const data: Session[] = await response.json();
+      // Set sessions with unique IDs (back-end should generate them, but ensure no collisions)
+      const mapped = data.map(session => {
+        if (!session.isDummy) {
+          // Real user session
+          return session;
         }
+        // If dummy, ensure we have a unique ID
+        if (!session.id.includes('dummy-')) {
+          session.id = `dummy-${session.id}`;
+        }
+        return session;
       });
-      
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!Array.isArray(data)) {
-        console.error('Invalid data format received:', data);
-        return;
-      }
-  
-      // Update active connections from real session data
-      const realSession = data.find((s: Session) => !s.isDummy);
-      if (realSession?.activeConnections !== undefined) {
-        setActiveConnections(realSession.activeConnections);
-      }
-  
-      const processedIds = new Set<string>();
-      
-      const updatedSessions = data.reduce((acc: Session[], newSession: Session) => {
-        if (!newSession.id || processedIds.has(newSession.id)) return acc;
-        
-        processedIds.add(newSession.id);
-        
-        if (newSession.id === sessionId.current) {
-          return [...acc, {
-            ...newSession,
-            alert: activeAlert
-          }];
-        }
-        
-        return [...acc, newSession];
-      }, []);
-  
-      setSessions(updatedSessions);
-      
-      // Update heatmap data
-      const heatData = updatedSessions.map((session: Session): [number, number, number] => [
-        session.position[0],
-        session.position[1],
-        session.isDummy ? 0.3 : 0.8
-      ]);
-      setHeatmapData(heatData);
-      
+      setSessions(mapped);
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      console.error('Failed to fetch sessions:', error);
     }
   };
 
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
-      if (mounted) {
-        fetchSessions();
-      }
-    }, 2000);  // Increase interval to 2 seconds
-    
+      if (!mounted) return;
+      fetchSessions(submittedDummyCount);
+    }, 2000);
+
+    // Attempt geolocation
     if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (mounted) {
-            const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-            setPosition(newPosition);
-            updateServerPosition(newPosition);
+      if (isTracking) {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            setPosition([latitude, longitude]);
+            updateServerPosition([latitude, longitude]);
+          },
+          (err) => {
+            console.error(err);
+            setLocationError('Unable to retrieve location.');
+          },
+          {
+            enableHighAccuracy: true
           }
-        },
-        (error) => {
-          if (mounted) {
-            setLocationError(error.message);
-          }
-        }
-      );
-  
-      const locationInterval = setInterval(() => {
-        if (isTracking && mounted) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              if (mounted) {
-                const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-                setPosition(newPosition);
-                updateServerPosition(newPosition);
-              }
-            },
-            (error) => {
-              if (mounted) {
-                setLocationError(error.message);
-              }
-            }
-          );
-        }
-      }, 5000);
-  
-      return () => {
-        mounted = false;
-        clearInterval(locationInterval);
-        clearInterval(sessionInterval);
-        if (alertTimeoutRef.current) {
-          clearTimeout(alertTimeoutRef.current);
-        }
-      };
+        );
+      } else if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
     }
-    
+
     return () => {
       mounted = false;
       clearInterval(sessionInterval);
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
     };
-  }, [isTracking]);
+  }, [isTracking, submittedDummyCount]);
 
   const handleCenterMap = () => {
     if (mapRef.current) {
-      mapRef.current.setView(position, DEFAULT_ZOOM, {
-        animate: true,
-        duration: 1
-      });
+      mapRef.current.setView(position, DEFAULT_ZOOM);
     }
   };
-  
+
+  // Toggle geolocation tracking
   const toggleTracking = () => {
     setIsTracking(!isTracking);
   };
