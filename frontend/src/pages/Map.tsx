@@ -154,11 +154,18 @@ export const Map: React.FC = () => {
   });
   const [usedAlertPositions, setUsedAlertPositions] = useState<Set<string>>(new Set());
   const [clusters, setClusters] = useState<ClusterInfo[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
 
   useEffect(() => {
-    const interval = setInterval(async () => {
+    const fetchActiveConnections = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/activeConnections`, { credentials: 'include' });
+        const response = await fetch(`${API_URL}/api/activeConnections`, {
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
         if (response.ok) {
           const data = await response.json();
           setActiveConnections(data.active);
@@ -166,64 +173,50 @@ export const Map: React.FC = () => {
       } catch (error) {
         console.error('Failed to fetch active connections:', error);
       }
-    }, 3000);
-
+    };
+  
+    // Initial fetch
+    fetchActiveConnections();
+  
+    // More frequent polling (every second)
+    const interval = setInterval(fetchActiveConnections, 1000);
     return () => clearInterval(interval);
   }, []);
+  
+  
   useEffect(() => {
     if (isTracking) {
-      // Get initial position
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-          setPosition(newPosition);
-          updateServerPosition(newPosition);
-        },
-        (err) => setLocationError(err.message),
-        { enableHighAccuracy: true }
-      );
-  
-      // Start watching position
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-          setPosition(newPosition);
-          updateServerPosition(newPosition);
-        },
-        (err) => setLocationError(err.message),
-        { enableHighAccuracy: true }
-      );
+      setConnectionStatus('connected');
+      // Immediately notify server about connection
+      updateServerPosition(position).then(() => {
+        // Force refresh active connections after connecting
+        fetch(`${API_URL}/api/activeConnections`, {
+          credentials: 'include'
+        }).then(res => res.json())
+          .then(data => setActiveConnections(data.active));
+      });
     } else {
-      // When tracking is disabled:
-      // 1. Clear the watch
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-      
-      // 2. Remove user's session from the sessions list
-      setSessions(prev => prev.filter(s => s.id !== sessionId.current));
-      
-      // 3. Notify server about disconnection
+      setConnectionStatus('disconnected');
+      // Notify server about disconnection
       fetch(`${API_URL}/api/location`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: sessionId.current,
           position: position,
-          timestamp: 0, // Use 0 to indicate disconnection
+          timestamp: 0,
           joinedAt: new Date().toISOString(),
-          alert: null
+          alert: null,
+          status: 'disconnected'
         }),
-      }).catch(console.error);
+      }).then(() => {
+        // Force refresh active connections after disconnecting
+        fetch(`${API_URL}/api/activeConnections`, {
+          credentials: 'include'
+        }).then(res => res.json())
+          .then(data => setActiveConnections(data.active));
+      });
     }
-  
-    return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-    };
   }, [isTracking]);
 
   useEffect(() => {
@@ -577,68 +570,85 @@ export const Map: React.FC = () => {
   // Function to update server with position
   const updateServerPosition = async (pos: [number, number], alert: AlertType | null = null) => {
     try {
-      await fetch(`${API_URL}/api/location`, {
+      const response = await fetch(`${API_URL}/api/location`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
         body: JSON.stringify({
           sessionId: sessionId.current,
           position: pos,
           timestamp: Date.now(),
           joinedAt: new Date().toISOString(),
-          alert: alert
+          alert: alert,
+          status: isTracking ? 'connected' : 'disconnected'
         }),
       });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setActiveConnections(data.activeConnections);
+      }
     } catch (error) {
       console.error('Failed updating server position:', error);
     }
   };
-  
-  // Function to fetch all sessions
+    
   const fetchSessions = async (dummyCountParam?: number) => {
     try {
       const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}&creator_id=${sessionId.current}`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       });
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data: Session[] = await response.json();
       
+      // Process sessions more efficiently
       setSessions(prev => {
-        // Find current user's session
         const currentUserSession = prev.find(s => s.id === sessionId.current);
-        
-        // Process incoming sessions and ensure dummies get unique IDs
-        const processedSessions = data.map(session => {
-          if (session.isDummy) {
-            return {
-              ...session,
-              id: `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              creatorId: sessionId.current
-            };
-          }
-          return session;
-        });
+        const processedSessions = data.map(session => 
+          session.isDummy ? {
+            ...session,
+            id: `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            creatorId: sessionId.current
+          } : session
+        );
   
-        // Only include current user's session if we're tracking
-        if (currentUserSession && isTracking) {
-          return [
-            currentUserSession,
-            ...processedSessions.filter(s => s.id !== sessionId.current)
-          ];
-        }
-  
-        return processedSessions;
+        return currentUserSession && isTracking 
+          ? [currentUserSession, ...processedSessions.filter(s => s.id !== sessionId.current)]
+          : processedSessions;
       });
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
   };
-  
+
+  useEffect(() => {
+    // Get position immediately without waiting for tracking state
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setPosition(newPosition);
+          updateServerPosition(newPosition);
+        },
+        (err) => setLocationError(err.message),
+        { enableHighAccuracy: false, timeout: 5000 } // Lower accuracy for faster initial position
+      );
+    }
+  }, []); // Run once on mount
+
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
       if (!mounted) return;
       fetchSessions(submittedDummyCount);
-    }, 2000);
+    }, 3000);
 
     if ('geolocation' in navigator) {
       if (isTracking) {
@@ -705,13 +715,15 @@ export const Map: React.FC = () => {
           <div className="bg-gray-700 p-4 rounded-lg">
             <h3 className="text-lg font-semibold mb-2">Network Status</h3>
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500"></div>
+              <div className={`h-2 w-2 rounded-full ${
+                connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'
+              }`}></div>
               <span className="text-sm">
                 Active Connections: <span className="font-bold">{activeConnections}</span>
               </span>
             </div>
-          </div>
-  
+          </div>  
+
           {/* Map & Location Controls */}
           <div className="bg-gray-700 p-4 rounded-lg">
             <h3 className="text-lg font-semibold mb-3">Map & Location Controls</h3>
