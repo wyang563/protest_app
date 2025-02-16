@@ -21,8 +21,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const API_URL = process.env.NODE_ENV === 'production' 
-    ? 'https://protest.morelos.dev'
-    : 'http://localhost:5001';
+  ? 'https://protest.morelos.dev'
+  : 'http://localhost:5001';
 
   const checkAuth = async () => {
     try {
@@ -58,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const login = async (username: string, password: string) => {
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await fetch(`${API_URL}/api/auth/login`, {  // Add /api prefix
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       body: JSON.stringify({ username, password }),
     });
-
+  
     if (response.ok) {
       const data = await response.json();
       setIsAuthenticated(true);
@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signup = async (username: string, password: string) => {
-    const response = await fetch(`${API_URL}/auth/signup`, {
+    const response = await fetch(`${API_URL}/api/auth/signup`, {  // Add /api prefix
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -90,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       body: JSON.stringify({ username, password }),
     });
-    
+      
     if (response.ok) {
       const data = await response.json();
       setIsAuthenticated(true);
