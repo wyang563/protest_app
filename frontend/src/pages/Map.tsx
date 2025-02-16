@@ -157,7 +157,7 @@ export const Map: React.FC = () => {
   const [clusters, setClusters] = useState<ClusterInfo[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [showHeatmap, setShowHeatmap] = useState(true);
-
+  const [displayedConnections, setDisplayedConnections] = useState<number>(0);
 
   useEffect(() => {
     const fetchActiveConnections = async () => {
@@ -171,20 +171,20 @@ export const Map: React.FC = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          setActiveConnections(data.active);
+          // Always show at least 1 if tracking is enabled locally
+          setDisplayedConnections(isTracking ? Math.max(1, data.active) : data.active);
         }
       } catch (error) {
         console.error('Failed to fetch active connections:', error);
+        // Still show 1 if tracking is enabled, even on error
+        setDisplayedConnections(isTracking ? 1 : 0);
       }
     };
-  
-    // Initial fetch
+
     fetchActiveConnections();
-  
-    // More frequent polling (every second)
     const interval = setInterval(fetchActiveConnections, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isTracking]); // Add isTracking as dependency
   
   
   useEffect(() => {
@@ -700,8 +700,8 @@ export const Map: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-16">
-      <div className="flex flex-col lg:flex-row gap-4 h-full">
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-16 flex items-center justify-center">
+    <div className="w-full max-w-[1400px] flex flex-col lg:flex-row gap-4">
         {/* Controls Section */}
         <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 rounded-2xl">
         {/* Top Bar with Login Info and Network Status */}
@@ -725,7 +725,7 @@ export const Map: React.FC = () => {
                 connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'
               }`}></div>
               <span className="text-gray-300">
-                {activeConnections} active
+                {displayedConnections} active
               </span>
             </div>
           </div>
@@ -859,8 +859,8 @@ export const Map: React.FC = () => {
         </div>
   
         {/* Map Section - Square on mobile, flex on desktop */}
-        <div className="w-full lg:flex-1">
-          <div className="aspect-square lg:aspect-none lg:h-[80vh] bg-gray-800 rounded-2xl overflow-hidden relative">
+        <div className="w-full lg:flex-1 flex items-center justify-center">
+          <div className="w-full aspect-square lg:aspect-auto lg:h-[80vh] bg-gray-800 rounded-2xl overflow-hidden relative">
             <MapContainer 
               center={position} 
               zoom={DEFAULT_ZOOM}
