@@ -1,43 +1,14 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
-from datetime import timedelta
 import whisper
 import os
-from auth import auth_bp, init_auth_db
-from routes import routes_bp
+from routes import bp
 import sqlite3
 
 app = Flask(__name__)
+CORS(app, origins=["https://protest.morelos.dev", "http://localhost:3000"])
 
-CORS(app,
-    resources={
-        r"/api/*": {
-            "origins": ["https://protest.morelos.dev", "http://localhost:3000"],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
-            "supports_credentials": True,
-            "expose_headers": ["Set-Cookie"]
-        }
-    },
-    supports_credentials=True
-)
-
-
-# Basic session config without security
-app.config.update(
-    SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-key-change-this'),
-    SESSION_COOKIE_SECURE=True,  # For HTTPS
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_DOMAIN='protest.morelos.dev',  # Your domain
-    PERMANENT_SESSION_LIFETIME=timedelta(days=7),  # Session lasts 7 days
-    SESSION_COOKIE_NAME='protest_session'  # Custom session cookie name
-)
-
-app.register_blueprint(auth_bp, url_prefix='/api')
-app.register_blueprint(routes_bp, url_prefix='/api')
-
-init_auth_db()
+app.register_blueprint(bp)
 
 # Load the Whisper model once at startup to avoid reloading on every request.
 # You can choose a model size: tiny, base, small, medium, large.
@@ -164,4 +135,19 @@ def transcribe_audio():
     return jsonify({"transcription": text})
 
 if __name__ == '__main__':
+    # Create database if it doesn't already exist
+    db_file = "transcriptions.db"
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS transcriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        radio_stream TEXT,
+        start_time TEXT,
+        text TEXT
+        )
+    """)
+    conn.commit()
+
+    # Run on port 5000 so React (port 3000) can access it
     app.run(host='0.0.0.0', port=5001, debug=True)
