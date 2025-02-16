@@ -178,63 +178,60 @@ export const Map: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-useEffect(() => {
-  // Initial position fetch
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-      setPosition(newPosition);
-      updateServerPosition(newPosition);
+  useEffect(() => {
+    if (isTracking) {
+      // Get initial position
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setPosition(newPosition);
+          updateServerPosition(newPosition);
+        },
+        (err) => setLocationError(err.message),
+        { enableHighAccuracy: true }
+      );
+  
+      // Start watching position
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setPosition(newPosition);
+          updateServerPosition(newPosition);
+        },
+        (err) => setLocationError(err.message),
+        { enableHighAccuracy: true }
+      );
+    } else {
+      // When tracking is disabled:
+      // 1. Clear the watch
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
       
-      // Add to sessions immediately
-      setSessions(prev => {
-        if (!prev.find(s => s.id === sessionId.current)) {
-          return [...prev, {
-            id: sessionId.current,
-            position: newPosition,
-            lastUpdate: Date.now(),
-            joinedAt: new Date().toISOString(),
-            isDummy: false,
-            alert: null
-          }];
-        }
-        return prev.map(s => 
-          s.id === sessionId.current 
-            ? { ...s, position: newPosition, lastUpdate: Date.now() }
-            : s
-        );
-      });
-    },
-    (err) => setLocationError(err.message),
-    { enableHighAccuracy: true }
-  );
-
-  // Continuous tracking
-  if (isTracking) {
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-        setPosition(newPosition);
-        updateServerPosition(newPosition);
-        
-        // Update session position
-        setSessions(prev => prev.map(s => 
-          s.id === sessionId.current 
-            ? { ...s, position: newPosition, lastUpdate: Date.now() }
-            : s
-        ));
-      },
-      (err) => setLocationError(err.message),
-      { enableHighAccuracy: true }
-    );
-  }
-
-  return () => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
+      // 2. Remove user's session from the sessions list
+      setSessions(prev => prev.filter(s => s.id !== sessionId.current));
+      
+      // 3. Notify server about disconnection
+      fetch(`${API_URL}/api/location`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionId.current,
+          position: position,
+          timestamp: 0, // Use 0 to indicate disconnection
+          joinedAt: new Date().toISOString(),
+          alert: null
+        }),
+      }).catch(console.error);
     }
-  };
+  
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
   }, [isTracking]);
 
   useEffect(() => {
@@ -607,8 +604,8 @@ useEffect(() => {
   // Function to fetch all sessions
   const fetchSessions = async (dummyCountParam?: number) => {
     try {
-      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}`, {
-        credentials: 'include'  // Add this to ensure cookies are sent
+      const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}&creator_id=${sessionId.current}`, {
+        credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data: Session[] = await response.json();
@@ -617,34 +614,33 @@ useEffect(() => {
         // Find current user's session
         const currentUserSession = prev.find(s => s.id === sessionId.current);
         
-        // Process incoming sessions
+        // Process incoming sessions and ensure dummies get unique IDs
         const processedSessions = data.map(session => {
-          // Generate unique IDs only for dummy sessions
           if (session.isDummy) {
             return {
               ...session,
-              id: `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+              id: `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              creatorId: sessionId.current
             };
           }
           return session;
         });
   
-        // Combine current user session with other sessions
-        if (currentUserSession) {
+        // Only include current user's session if we're tracking
+        if (currentUserSession && isTracking) {
           return [
             currentUserSession,
             ...processedSessions.filter(s => s.id !== sessionId.current)
           ];
         }
   
-        // If no current user session, just return processed sessions
         return processedSessions;
       });
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
   };
-
+  
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
