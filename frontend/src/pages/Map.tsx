@@ -199,9 +199,9 @@ export const Map: React.FC = () => {
         const alertType = rollForAlert(simulationConfig.alertProbabilities);
         if (!alertType) return;
         
-        // Create unique alert
+        // Create unique alert with dummy's unique ID
         const newAlert: AlertMarker = {
-          id: crypto.randomUUID(),
+          id: `${dummySession.id}-alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           position: dummySession.position,
           type: alertType,
           createdAt: Date.now(),
@@ -221,13 +221,6 @@ export const Map: React.FC = () => {
           setTimeout(() => {
             fetch(`${API_URL}/api/alert/${newAlert.id}`, {
               method: 'DELETE'
-            }).then(() => {
-              // Create new alert 3 seconds after deletion
-              setTimeout(() => {
-                if (simulationConfig.isRunning) {
-                  runAlertSimulation();
-                }
-              }, 3000);
             });
           }, 2000);
         })
@@ -241,7 +234,7 @@ export const Map: React.FC = () => {
       setSimulationConfig(prev => ({ ...prev, isRunning: false }));
     }, 60000);
   };
-  
+
   const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
     const roll = Math.random();
     
