@@ -195,28 +195,46 @@ export const Map: React.FC = () => {
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
     
     const simulationInterval = setInterval(() => {
+      // Process each dummy session independently
       dummySessions.forEach(dummySession => {
-        // Roll for alert every 5 seconds (20% chance)
-        if (Math.random() < 0.2) {
-          const alertType = rollForAlert(simulationConfig.alertProbabilities);
-          if (!alertType) return;
-          
-          const newAlert: AlertMarker = {
-            id: crypto.randomUUID(),
-            position: dummySession.position,  // Use dummy's exact position
-            type: alertType,
-            createdAt: Date.now(),
-            creatorId: dummySession.id
-          };
-          
-          // Send alert to server
-          fetch(`${API_URL}/api/alert`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(newAlert)
-          });
+        // Check if this position is in the preferred direction (95% bias)
+        const angle = Math.atan2(
+          dummySession.position[1] - position[1],
+          dummySession.position[0] - position[0]
+        ) * (180 / Math.PI);
+        
+        // Normalize angles to 0-360
+        const normalizedAngle = (angle + 360) % 360;
+        const targetDirection = simulationConfig.direction;
+        const angleDiff = Math.abs(normalizedAngle - targetDirection);
+        
+        // Consider positions within ±45° of target direction as "in direction"
+        const isInDirection = angleDiff <= 45 || angleDiff >= 315;
+        
+        // Apply directional bias - 95% chance to only use positions in direction
+        if (Math.random() > 0.95 || isInDirection) {
+          // Roll for alert chance (20% per 5 seconds for each dummy)
+          if (Math.random() < 0.2) {
+            const alertType = rollForAlert(simulationConfig.alertProbabilities);
+            if (!alertType) return;
+            
+            const newAlert: AlertMarker = {
+              id: crypto.randomUUID(),
+              position: dummySession.position,
+              type: alertType,
+              createdAt: Date.now(),
+              creatorId: dummySession.id
+            };
+            
+            // Send alert to server
+            fetch(`${API_URL}/api/alert`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(newAlert)
+            }).catch(console.error); // Add error handling
+          }
         }
       });
     }, 5000);
@@ -226,7 +244,7 @@ export const Map: React.FC = () => {
       setSimulationConfig(prev => ({ ...prev, isRunning: false }));
     }, 60000);
   };
-
+  
   const calculateBiasedPosition = (
     basePosition: [number, number], 
     direction: number,
@@ -242,24 +260,21 @@ export const Map: React.FC = () => {
   
   const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
     const roll = Math.random();
-    let cumulative = probabilities.none;
     
-    if (roll > cumulative) {
-      cumulative += probabilities.water;
-      if (roll <= cumulative) return 'water';
-      
-      cumulative += probabilities.medical;
-      if (roll <= cumulative) return 'medical';
-      
-      cumulative += probabilities.arrest;
-      if (roll <= cumulative) return 'arrest';
-      
-      return 'stayaway';
+    // Using cumulative probability
+    if (roll < probabilities.none) {
+      return null;  // 50% chance of no alert
+    } else if (roll < probabilities.none + probabilities.water) {
+      return 'water';  // 28% chance of water
+    } else if (roll < probabilities.none + probabilities.water + probabilities.medical) {
+      return 'medical';  // 10% chance of medical
+    } else if (roll < probabilities.none + probabilities.water + probabilities.medical + probabilities.arrest) {
+      return 'arrest';  // 8% chance of arrest
+    } else {
+      return 'stayaway';  // 4% chance of stayaway
     }
-    
-    return null;
   };
-
+  
   const handleLogout = async () => {
     try {
       await logout();
