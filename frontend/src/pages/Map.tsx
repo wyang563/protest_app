@@ -698,10 +698,10 @@ export const Map: React.FC = () => {
   };
 
   return (
-    <div className="p-20 min-h-screen bg-gray-900 text-gray-100 fixed inset-0 flex">
+    <div className="p-6 min-h-screen bg-gray-900 text-gray-100 fixed inset-0 flex md:p-16">
       <div className="flex flex-col lg:flex-row w-full h-full rounded-lg">
         {/* Controls Section */}
-        <div className="w-full lg:w-96 flex-shrink-0 overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">
+        <div className="w-full lg:w-96 flex-shrink-0 overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2 rounded-lg">
           {/* Top Bar with Login Info and Network Status */}
           <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-lg">
             {/* Login Info - Compact */}
