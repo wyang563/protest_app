@@ -369,14 +369,14 @@ export const Map: React.FC = () => {
       console.error('Error fetching sessions:', error);
     }
   };
-  
+
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
       if (mounted) {
         fetchSessions();
       }
-    }, 1000); 
+    }, 2000);  // Increase interval to 2 seconds
     
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -428,7 +428,7 @@ export const Map: React.FC = () => {
       clearInterval(sessionInterval);
     };
   }, [isTracking]);
-  
+    
   const handleCenterMap = () => {
     if (mapRef.current) {
       mapRef.current.setView(position, DEFAULT_ZOOM, {

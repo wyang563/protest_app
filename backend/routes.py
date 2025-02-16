@@ -5,6 +5,9 @@ import time
 from math import cos, sin, pi, radians
 import random
 import numpy as np
+from collections import defaultdict
+from functools import lru_cache
+
 
 routes_bp = Blueprint('routes', __name__)
 
@@ -15,22 +18,29 @@ session_lock = threading.Lock()
 alert_markers = {}
 alert_lock = threading.Lock()
 
-active_connections = {}
-connection_lock = threading.Lock()
+# Use a more efficient data structure
+active_sessions = defaultdict(dict)
+session_lock = threading.RLock()  # Use RLock instead of Lock
+
+# Cache the active connection count for 1 second
+@lru_cache(maxsize=1)
+def get_cached_connection_count():
+    current_time = time.time() * 1000
+    count = 0
+    with session_lock:
+        for session in active_sessions.values():
+            if (
+                current_time - session.get('timestamp', 0) < 30000 and
+                not session.get('isDummy', False) and
+                session.get('id') is not None
+            ):
+                count += 1
+    return count, current_time // 1000  # Include timestamp in cache key
 
 def count_active_connections():
     """Count real (non-dummy) active sessions within last 30 seconds"""
-    current_time = time.time() * 1000
-    with session_lock:
-        active_count = sum(
-            1 for session in sessions.values()
-            if (
-                current_time - session.get('timestamp', 0) < 30000 and  # Active within 30s
-                not session.get('isDummy', False) and                   # Not a dummy
-                session.get('id') is not None                          # Valid session
-            )
-        )
-        return active_count
+    count, _ = get_cached_connection_count()
+    return count
 
 def generate_random_coordinates(center: tuple[float, float], min_distance: float, max_distance: float, count: int) -> list:
     """Generate random coordinates within a radius range from center point"""
@@ -76,85 +86,65 @@ def update_location():
     session_id = data.get('sessionId')
     position = data.get('position')
     timestamp = data.get('timestamp', time.time() * 1000)
-    joined_at = data.get('joinedAt', datetime.now().isoformat())
-    alert = data.get('alert')
-
+    
     if not all([session_id, position]):
         return jsonify({'error': 'Missing required fields'}), 400
 
     with session_lock:
-        is_new_session = session_id not in sessions
-        
-        if is_new_session:
-            # New session
-            sessions[session_id] = {
-                'id': session_id,
-                'position': position,
-                'timestamp': timestamp,
-                'joinedAt': joined_at,
-                'ip': request.remote_addr,
-                'alert': alert,
-                'isDummy': False
-            }
-        else:
-            # Update existing session
-            sessions[session_id].update({
-                'position': position,
-                'timestamp': timestamp,
-                'alert': alert
-            })
-        
-        # Get current active connection count
-        active_count = count_active_connections()
-        
-        return jsonify({
-            'success': True,
-            'activeConnections': active_count,
-            'isNewSession': is_new_session
+        is_new_session = session_id not in active_sessions
+        active_sessions[session_id].update({
+            'id': session_id,
+            'position': position,
+            'timestamp': timestamp,
+            'joinedAt': data.get('joinedAt', datetime.now().isoformat()),
+            'ip': request.remote_addr,
+            'alert': data.get('alert'),
+            'isDummy': False
         })
-
+        
+        # Force cache update for connection count
+        get_cached_connection_count.cache_clear()
+        current_count = count_active_connections()
+        
+    return jsonify({
+        'success': True,
+        'activeConnections': current_count,
+        'isNewSession': is_new_session
+    })
+    
 @routes_bp.route('/api/sessions', methods=['GET'])
 def get_sessions():
     try:
         dummy_count = request.args.get('dummy_count', default=0, type=int)
         creator_id = request.args.get('creator_id')
+        current_time = time.time() * 1000
         
         with session_lock:
-            # Get current active connection count
-            current_connections = count_active_connections()
-            
-            # Get real sessions with their alerts
-            real_sessions = [{
-                'id': session['id'],
-                'position': session['position'],
-                'lastUpdate': session['timestamp'],
-                'joinedAt': session['joinedAt'],
-                'ip': session['ip'],
-                'isDummy': False,
-                'alert': session.get('alert'),
-                'creatorId': session.get('creatorId'),
-                'activeConnections': current_connections
-            } for session in sessions.values() 
-                if not session.get('isDummy', False) and session.get('timestamp', 0) > time.time() * 1000 - 30000]
-            
-            # Handle dummy sessions
-            if dummy_count > 0:
-                # Calculate center of mass from active sessions only
-                if real_sessions:
-                    positions = np.array([s['position'] for s in real_sessions])
-                    center_of_mass = positions.mean(axis=0)
-                else:
-                    center_of_mass = np.array([40.7128, -74.0060])
+            # Get real sessions efficiently
+            real_sessions = []
+            for session_id, session in active_sessions.items():
+                if (
+                    not session.get('isDummy', False) and 
+                    current_time - session.get('timestamp', 0) < 30000
+                ):
+                    real_sessions.append({
+                        'id': session['id'],
+                        'position': session['position'],
+                        'lastUpdate': session['timestamp'],
+                        'joinedAt': session['joinedAt'],
+                        'ip': session['ip'],
+                        'isDummy': False,
+                        'alert': session.get('alert'),
+                        'creatorId': session.get('creatorId'),
+                        'activeConnections': count_active_connections()
+                    })
+
+            # Handle dummy sessions more efficiently
+            if dummy_count > 0 and real_sessions:
+                positions = np.array([s['position'] for s in real_sessions])
+                center_of_mass = positions.mean(axis=0)
                 
-                # Clear old dummy sessions for this creator
-                sessions_to_remove = [
-                    sid for sid, session in sessions.items() 
-                    if session.get('isDummy', False) and session.get('creatorId') == creator_id
-                ]
-                for sid in sessions_to_remove:
-                    del sessions[sid]
-                
-                # Generate new dummy positions
+                # Generate dummy positions in bulk
                 dummy_positions = generate_random_coordinates(
                     center=tuple(center_of_mass),
                     min_distance=30,
@@ -162,11 +152,18 @@ def get_sessions():
                     count=dummy_count
                 )
                 
-                # Create dummy sessions
-                current_time = time.time() * 1000
+                # Clear old dummy sessions
+                to_delete = [
+                    sid for sid, session in active_sessions.items()
+                    if session.get('isDummy') and session.get('creatorId') == creator_id
+                ]
+                for sid in to_delete:
+                    del active_sessions[sid]
+                
+                # Add new dummy sessions
                 for i, pos in enumerate(dummy_positions):
                     dummy_id = f'dummy-{int(current_time)}-{i}'
-                    sessions[dummy_id] = {
+                    active_sessions[dummy_id] = {
                         'id': dummy_id,
                         'position': pos,
                         'timestamp': current_time,
@@ -177,17 +174,21 @@ def get_sessions():
                         'alert': None
                     }
             
-            # Return all active sessions
-            all_sessions = [{
-                'id': session['id'],
-                'position': session['position'],
-                'lastUpdate': session['timestamp'],
-                'joinedAt': session['joinedAt'],
-                'ip': session['ip'],
-                'isDummy': session.get('isDummy', False),
-                'creatorId': session.get('creatorId'),
-                'alert': session.get('alert')
-            } for session in sessions.values()]
+            # Combine real and dummy sessions efficiently
+            all_sessions = real_sessions + [
+                {
+                    'id': session['id'],
+                    'position': session['position'],
+                    'lastUpdate': session['timestamp'],
+                    'joinedAt': session['joinedAt'],
+                    'ip': session['ip'],
+                    'isDummy': True,
+                    'creatorId': session.get('creatorId'),
+                    'alert': session.get('alert')
+                }
+                for session in active_sessions.values()
+                if session.get('isDummy', False)
+            ]
             
             return jsonify(all_sessions)
             
