@@ -8,6 +8,7 @@
 /radio_stream/audio_store
 __pycache__
 .venv
+node_modules/
 
 # testing
 /frontend/coverage

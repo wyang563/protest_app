@@ -57,25 +57,27 @@ def update_location():
     position = data.get('position')
     timestamp = data.get('timestamp')
     joined_at = data.get('joinedAt', datetime.now().isoformat())
+    alert = data.get('alert')  # Add this line
 
     if not all([session_id, position, timestamp]):
         return jsonify({'error': 'Missing required fields'}), 400
 
     with session_lock:
-        # If this is a new session, store the original join time
         if session_id not in sessions:
             sessions[session_id] = {
                 'id': session_id,
                 'position': position,
                 'timestamp': timestamp,
                 'joinedAt': joined_at,
-                'ip': request.remote_addr
+                'ip': request.remote_addr,
+                'alert': alert  # Add this line
             }
         else:
-            # Update only position and timestamp for existing sessions
+            # Update position, timestamp and alert for existing sessions
             sessions[session_id].update({
                 'position': position,
-                'timestamp': timestamp
+                'timestamp': timestamp,
+                'alert': alert  # Add this line
             })
 
     return jsonify({'success': True})
@@ -93,7 +95,8 @@ def get_sessions():
             'lastUpdate': session['timestamp'],
             'joinedAt': session['joinedAt'],
             'ip': session['ip'],
-            'isDummy': False
+            'isDummy': False,
+            'alert': session.get('alert')  # Add this line
         } for session in sessions.values() if not session.get('isDummy', False)]
         
         # Handle dummy sessions
@@ -117,8 +120,8 @@ def get_sessions():
             # Generate new dummy positions
             dummy_positions = generate_random_coordinates(
                 center=tuple(center_of_mass),
-                min_distance=5,    # Minimum 5 meters
-                max_distance=200,  # Maximum 200 meters
+                min_distance=30,    # Minimum 5 meters
+                max_distance=300,  # Maximum 200 meters
                 count=dummy_count
             )
             
@@ -147,7 +150,8 @@ def get_sessions():
             'joinedAt': session['joinedAt'],
             'ip': session['ip'],
             'isDummy': session.get('isDummy', False),
-            'creatorId': session.get('creatorId')
-        } for session in sessions.values()]
-        
+            'creatorId': session.get('creatorId'),
+            'alert': session.get('alert')  # Add this line
+        } for session in sessions.values()]       
+         
         return jsonify(all_sessions)
