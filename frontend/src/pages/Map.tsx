@@ -8,7 +8,6 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useNavigate } from 'react-router-dom';
 
-
 const API_URL = process.env.NODE_ENV === 'production' 
   ? 'https://protest.morelos.dev'
   : 'http://localhost:5001';
@@ -193,15 +192,15 @@ export const Map: React.FC = () => {
 
   const fetchAlertMarkers = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts`);
+      const response = await fetch(`${API_URL}/api/alerts`);
       if (!response.ok) throw new Error('Failed to fetch alerts');
       const data = await response.json();
       setAlertMarkers(data);
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
-  };  
-
+  };
+  
   const handleAlertRequest = (type: AlertType['type']) => {
     const newAlertMarker: AlertMarker = {
       id: crypto.randomUUID(),
@@ -211,8 +210,7 @@ export const Map: React.FC = () => {
       creatorId: sessionId.current
     };
     
-    // Send alert to server
-    fetch(`${API_BASE_URL}/alert`, {
+    fetch(`${API_URL}/api/alert`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -226,13 +224,13 @@ export const Map: React.FC = () => {
       })
     }).then(() => fetchAlertMarkers());
   };
-  
+    
   const handleRemoveAlertMarker = (markerId: string) => {
-    fetch(`${API_BASE_URL}/alert/${markerId}`, {
+    fetch(`${API_URL}/api/alert/${markerId}`, {
       method: 'DELETE'
     }).then(() => fetchAlertMarkers());
   };
-    
+      
   // Add handleClearAlert function
   const handleClearAlert = () => {
     console.log('[Clear Alert]', {
