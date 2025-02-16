@@ -166,7 +166,7 @@ export const Map: React.FC = () => {
   
     return () => clearInterval(interval);
   }, []);
-
+  
   useEffect(() => {
     return () => {
       // When component unmounts, notify server about disconnection
@@ -189,27 +189,26 @@ export const Map: React.FC = () => {
   const runAlertSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
-    
+  
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
     setUsedAlertPositions(new Set()); // Reset used positions at start
-    
+  
     const simulationInterval = setInterval(() => {
-      // Process each dummy independently
       dummySessions.forEach(dummySession => {
         // 20% chance to attempt alert creation per dummy every 5 seconds
         if (Math.random() < 0.2) {
           const alertType = rollForAlert(simulationConfig.alertProbabilities);
           if (!alertType) return;
-          
+  
           // Create position key to check for duplicates
           const posKey = `${dummySession.position[0]},${dummySession.position[1]}`;
-          
+  
           // Skip if this position was recently used
           if (usedAlertPositions.has(posKey)) return;
-          
+  
           // Add position to used set
           setUsedAlertPositions(prev => new Set(prev).add(posKey));
-          
+  
           // Create unique alert
           const newAlert: AlertMarker = {
             id: crypto.randomUUID(),
@@ -218,7 +217,7 @@ export const Map: React.FC = () => {
             createdAt: Date.now(),
             creatorId: dummySession.id
           };
-          
+  
           // Send alert to server
           fetch(`${API_URL}/api/alert`, {
             method: 'POST',
@@ -241,7 +240,7 @@ export const Map: React.FC = () => {
         }
       });
     }, 5000);
-    
+  
     // Stop simulation after 1 minute
     setTimeout(() => {
       clearInterval(simulationInterval);
@@ -249,7 +248,7 @@ export const Map: React.FC = () => {
       setUsedAlertPositions(new Set()); // Clear used positions
     }, 60000);
   };
-      
+
   const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
     const roll = Math.random();
     
@@ -318,7 +317,7 @@ export const Map: React.FC = () => {
       const response = await fetch(`${API_URL}/api/alerts`);
       if (!response.ok) throw new Error('Failed to fetch alerts');
       const data = await response.json();
-      
+
       // Update markers, maintaining existing ones that haven't expired
       setAlertMarkers(prev => {
         const now = Date.now();
@@ -326,14 +325,14 @@ export const Map: React.FC = () => {
           now - marker.createdAt < 2000 && // Keep markers less than 2 seconds old
           !data.some((newMarker: AlertMarker) => newMarker.id === marker.id) // Remove if in new data
         );
-        
+
         return [...validPrevMarkers, ...data];
       });
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
   };
-    
+
   const handleAlertRequest = (type: AlertType['type']) => {
     const newAlertMarker: AlertMarker = {
       id: crypto.randomUUID(),
