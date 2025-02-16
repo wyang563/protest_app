@@ -25,38 +25,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     : 'http://localhost:5001/api';
 
   const checkAuth = async () => {
-    try {
-      const response = await fetch(`${API_URL}/auth/check`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setIsAuthenticated(true);
-        setUser({
-          user_id: data.user_id,
-          username: data.username
+      try {
+        const response = await fetch(`${API_URL}/auth/check`, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
         });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setIsAuthenticated(true);
+          setUser({
+            user_id: data.user_id,
+            username: data.username
+          });
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-    } finally {
-      setLoading(false);
+    };
+  
+    useEffect(() => {
+      checkAuth();
+    }, []);
+  
+    if (loading) {
+      return <div>Loading...</div>;
     }
-  };
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
+  
   // Remove /api prefix since it's already in the routes
   const checkAuth = async () => {
     try {
