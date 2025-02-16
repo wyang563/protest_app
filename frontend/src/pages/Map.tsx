@@ -752,23 +752,21 @@ export const Map: React.FC = () => {
                 {...heatmapOptions}
               />
               <MapUpdater center={position} />
-              {sessions && sessions.map((session) => {
+              {sessions?.map((session) => {
                 const isCurrentUser = session.id === sessionId.current;
                 const effectiveAlert = isCurrentUser ? activeAlert : session.alert;
-                const shouldShowAlert = effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type];
-
-                if (shouldShowAlert) {
-                  const alertConfig = ALERT_CONFIGS[effectiveAlert.type];
-                  return (
-                    <Marker 
-                      key={session.id}
-                      position={session.position}
-                      icon={L.divIcon({
-                        html: `<img src="${alertConfig.icon}" class="w-6 h-6" />`,
-                        className: '',
-                        iconSize: alertConfig.size as PointTuple,
-                      })}
-                    >
+                
+                return (
+                  <React.Fragment key={session.id}>
+                    {effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type] ? (
+                      <Marker 
+                        position={session.position}
+                        icon={L.divIcon({
+                          html: `<img src="${ALERT_CONFIGS[effectiveAlert.type].icon}" class="w-6 h-6" />`,
+                          className: '',
+                          iconSize: ALERT_CONFIGS[effectiveAlert.type].size as PointTuple,
+                        })}
+                      >
                         <Popup>
                           <div className="p-2">
                             <h3 className="font-bold mb-2">
@@ -782,25 +780,20 @@ export const Map: React.FC = () => {
                               <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
                               {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
                               <li className="text-red-500">
-                                <strong>{alertConfig.tooltip}</strong>
+                                <strong>{ALERT_CONFIGS[effectiveAlert.type].tooltip}</strong>
                               </li>
                             </ul>
                           </div>
                         </Popup>
                       </Marker>
-                    );
-                  }
-                  // If no valid alert, render circle marker
-                  logMarkerChange(session, 'Rendering Circle Marker');
-                  return (
+                    ) : (
                     <CircleMarker 
-                      key={session.id}
                       center={session.position}
                       {...circleMarkerStyle}
                       color={getSessionColor(session.id)}
                       radius={isCurrentUser ? 10 : 8}
                       opacity={session.isDummy ? 0.5 : 1}
-                    >
+                    >                                
                       <Popup>
                         <div className="p-2">
                           <h3 className="font-bold mb-2">
@@ -817,8 +810,10 @@ export const Map: React.FC = () => {
                         </div>
                       </Popup>
                     </CircleMarker>
-                  );
-                })}
+                  )};
+                  </React.Fragment>
+                );
+              })}
               {alertMarkers.map(marker => (
                 <Marker
                   key={marker.id}
