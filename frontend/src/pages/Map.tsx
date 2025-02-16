@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-
+import { useAuth } from '../contexts/AuthContext';
 import React, { useState, useEffect, useRef } from 'react';
 import { HeatmapLayer } from 'react-leaflet-heatmap-layer-v3';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap, Marker } from 'react-leaflet';
@@ -104,6 +104,8 @@ const MapUpdater: React.FC<{ center: [number, number] }> = ({ center }) => {
 };
 
 export const Map: React.FC = () => {
+  const { user } = useAuth(); // Add this line to get the current user
+
   const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -398,7 +400,14 @@ export const Map: React.FC = () => {
   return (
     <div className="h-screen flex flex-col">
       <div className="p-4 bg-gray-100">
-        <h1 className="text-2xl mb-4">Protest Map</h1>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl">Protest Map</h1>
+          {user && (
+            <div className="text-gray-600 bg-white px-4 py-2 rounded-lg shadow">
+              Logged in as: <span className="font-semibold">{user.username}</span>
+            </div>
+          )}
+        </div>
         
         {/* Location Status and Controls */}
         <div className="mb-4">
