@@ -6,7 +6,7 @@ from math import cos, sin, pi, radians
 import random
 import numpy as np
 
-bp = Blueprint('routes', __name__)
+routes_bp = Blueprint('routes', __name__)
 
 # In-memory storage for sessions
 sessions = {}
@@ -53,7 +53,7 @@ def cleanup_old_sessions():
 cleanup_thread = threading.Thread(target=cleanup_old_sessions, daemon=True)
 cleanup_thread.start()
 
-@bp.route('/api/location', methods=['POST'])
+@routes_bp.route('/api/location', methods=['POST'])
 def update_location():
     data = request.json
     session_id = data.get('sessionId')
@@ -85,7 +85,7 @@ def update_location():
 
     return jsonify({'success': True})
 
-@bp.route('/api/sessions', methods=['GET'])
+@routes_bp.route('/api/sessions', methods=['GET'])
 def get_sessions():
     dummy_count = request.args.get('dummy_count', default=0, type=int)
     creator_id = request.args.get('creator_id')
@@ -160,7 +160,7 @@ def get_sessions():
          
         return jsonify(all_sessions)
     
-@bp.route('/api/alert', methods=['POST'])
+@routes_bp.route('/api/alert', methods=['POST'])
 def create_alert():
     data = request.json
     marker_id = data.get('markerId')
@@ -180,7 +180,7 @@ def create_alert():
     
     return jsonify({'success': True})
 
-@bp.route('/api/alert/<marker_id>', methods=['DELETE'])
+@routes_bp.route('/api/alert/<marker_id>', methods=['DELETE'])
 def remove_alert(marker_id):
     with alert_lock:
         if marker_id in alert_markers:
@@ -188,7 +188,7 @@ def remove_alert(marker_id):
     
     return jsonify({'success': True})
 
-@bp.route('/api/alerts', methods=['GET'])
+@routes_bp.route('/api/alerts', methods=['GET'])
 def get_alerts():
     current_time = time.time() * 1000
     

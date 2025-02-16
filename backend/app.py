@@ -2,13 +2,35 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import whisper
 import os
-from routes import bp
+from auth import auth_bp, init_auth_db
+from routes import routes_bp
 import sqlite3
 
 app = Flask(__name__)
-CORS(app, origins=["https://protest.morelos.dev", "http://localhost:3000"])
 
-app.register_blueprint(bp)
+CORS(app,
+    resources={r"/*": {  # Match all routes
+        "origins": "*",
+        "methods": ["*"],
+        "allow_headers": ["*"],
+        "supports_credentials": True
+    }},
+    supports_credentials=True
+)
+
+# Basic session config without security
+app.config.update(
+    SECRET_KEY='dev',
+    SESSION_COOKIE_SECURE=False,
+    SESSION_COOKIE_HTTPONLY=False,
+    SESSION_COOKIE_SAMESITE=None,
+    SESSION_COOKIE_DOMAIN=None
+)
+
+app.register_blueprint(auth_bp)  # Changed from /api/auth
+app.register_blueprint(routes_bp)  # Changed from /api
+
+init_auth_db()
 
 # Load the Whisper model once at startup to avoid reloading on every request.
 # You can choose a model size: tiny, base, small, medium, large.
@@ -135,19 +157,4 @@ def transcribe_audio():
     return jsonify({"transcription": text})
 
 if __name__ == '__main__':
-    # Create database if it doesn't already exist
-    db_file = "transcriptions.db"
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS transcriptions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        radio_stream TEXT,
-        start_time TEXT,
-        text TEXT
-        )
-    """)
-    conn.commit()
-
-    # Run on port 5000 so React (port 3000) can access it
     app.run(host='0.0.0.0', port=5001, debug=True)

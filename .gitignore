@@ -9,6 +9,7 @@
 __pycache__
 .venv
 node_modules/
+.env
 
 # testing
 /frontend/coverage
