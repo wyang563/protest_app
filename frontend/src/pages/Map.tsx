@@ -201,6 +201,25 @@ export const Map: React.FC = () => {
     };
   }, [position]);
 
+  useEffect(() => {
+    setSessions(prev => {
+      if (!prev.find(s => s.id === sessionId.current)) {
+        return [
+          ...prev,
+          {
+            id: sessionId.current,
+            position,
+            lastUpdate: Date.now(),
+            joinedAt: new Date().toISOString(),
+            isDummy: false,
+            alert: null
+          }
+        ];
+      }
+      return prev;
+    });
+  }, [position]);
+
   const runClusterSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
@@ -505,8 +524,9 @@ export const Map: React.FC = () => {
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data: Session[] = await response.json();
       const mapped = data.map(session => {
-        if (!session.isDummy) return session;
-        session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        if (session.isDummy) {
+          session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        }
         return session;
       });
       setSessions(mapped);
