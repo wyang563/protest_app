@@ -930,31 +930,30 @@ export const Map: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Voice Analysis - Below Development Tools */}
-        <div className="bg-gray-700/50 p-3 rounded-lg mt-2">
-          <h3 className="text-sm font-medium mb-2 text-gray-400">Voice Analysis</h3>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-300">Auto-Alert from Voice</span>
-            <button
-              onClick={toggleRecording}
-              className={`px-3 py-1 rounded text-xs ${
-                isRecording 
-                  ? 'bg-red-600/80 hover:bg-red-700/80' 
-                  : 'bg-green-600/50 hover:bg-green-700/50'
-              } text-white transition-colors`}
-            >
-              {isRecording ? 'Stop Recording' : 'Start Recording'}
-            </button>
+          {/* Voice Analysis - Below Development Tools */}
+          <div className="bg-gray-700/50 p-3 rounded-lg mt-2">
+            <h3 className="text-sm font-medium mb-2 text-gray-400">Voice Analysis</h3>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-300">Auto-Alert from Voice</span>
+              <button
+                onClick={toggleRecording}
+                className={`px-3 py-1 rounded text-xs ${
+                  isRecording 
+                    ? 'bg-red-600/80 hover:bg-red-700/80' 
+                    : 'bg-green-600/50 hover:bg-green-700/50'
+                } text-white transition-colors`}
+              >
+                {isRecording ? 'Stop Recording' : 'Start Recording'}
+              </button>
+            </div>
+            {isRecording && (
+              <p className="text-xs text-gray-400 mt-2">
+                Listening for voice sentiment...
+              </p>
+            )}
           </div>
-          {isRecording && (
-            <p className="text-xs text-gray-400 mt-2">
-              Listening for voice sentiment...
-            </p>
-          )}
-        </div>
-  
+        </div>  
         {/* Map Section - Square on mobile, flex on desktop */}
         <div className="w-full lg:flex-1 flex items-center justify-center">
           <div className="w-full aspect-square lg:aspect-auto lg:h-[80vh] bg-gray-800 rounded-2xl overflow-hidden relative">
