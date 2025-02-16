@@ -51,6 +51,12 @@ interface SimulationConfig {
   };
 }
 
+interface ClusterInfo {
+  type: AlertType['type'];
+  position: [number, number];
+  strength: number;
+}
+
 interface AlertType {
   type: 'water' | 'medical' | 'arrest' | 'stayaway';
   expiresAt: number;
@@ -147,6 +153,7 @@ export const Map: React.FC = () => {
     }
   });
   const [usedAlertPositions, setUsedAlertPositions] = useState<Set<string>>(new Set());
+  const [clusters, setClusters] = useState<ClusterInfo[]>([]);
 
   useEffect(() => {
     const cleanup = setInterval(() => {
@@ -193,6 +200,106 @@ export const Map: React.FC = () => {
       }).catch(console.error);
     };
   }, [position]);
+
+  const runClusterSimulation = () => {
+    const dummySessions = sessions.filter(s => s.isDummy);
+    if (dummySessions.length === 0) return;
+  
+    setSimulationConfig(prev => ({ ...prev, isRunning: true }));
+    setClusters([]); // Reset clusters at start
+  
+    const simulationInterval = setInterval(() => {
+      dummySessions.forEach(dummy => {
+        // Check for nearby clusters first
+        const nearbyCluster = clusters.find(cluster => {
+          const distance = Math.sqrt(
+            Math.pow(cluster.position[0] - dummy.position[0], 2) + 
+            Math.pow(cluster.position[1] - dummy.position[1], 2)
+          );
+          return distance < 0.005; // Roughly 500m radius
+        });
+  
+        // Higher chance to create alert if near cluster of same type
+        const baseChance = 0.2;
+        const clusterBonus = nearbyCluster ? 0.4 : 0;
+        const totalChance = Math.min(baseChance + clusterBonus, 0.8);
+  
+        if (Math.random() < totalChance) {
+          // If near cluster, higher chance to match its type
+          let alertType: AlertType['type'] | null;
+          if (nearbyCluster && Math.random() < 0.7) {
+            alertType = nearbyCluster.type;
+          } else {
+            alertType = rollForAlert(simulationConfig.alertProbabilities);
+          }
+  
+          if (!alertType) return;
+  
+          // Create new alert
+          const newAlert: AlertMarker = {
+            id: `cluster-alert-${dummy.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            position: dummy.position,
+            type: alertType,
+            createdAt: Date.now(),
+            creatorId: dummy.id
+          };
+  
+          // Add to clusters with random initial strength
+          setClusters(prev => [...prev, {
+            type: alertType!,
+            position: dummy.position,
+            strength: Math.random() * 0.5 + 0.5 // 0.5 to 1.0
+          }]);
+  
+          // Send alert to server
+          fetch(`${API_URL}/api/alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              markerId: newAlert.id,
+              position: newAlert.position,
+              type: newAlert.type,
+              creatorId: newAlert.creatorId,
+              createdAt: newAlert.createdAt
+            })
+          })
+          .then(() => {
+            setTimeout(() => {
+              fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
+                .then(() => {
+                  // Remove from clusters after delay
+                  setClusters(prev => 
+                    prev.filter(c => 
+                      c.position[0] !== newAlert.position[0] || 
+                      c.position[1] !== newAlert.position[1]
+                    )
+                  );
+                  
+                  // Create new alert after short delay
+                  setTimeout(() => {
+                    if (simulationConfig.isRunning) {
+                      const nextAlertType = rollForAlert(simulationConfig.alertProbabilities);
+                      if (nextAlertType) {
+                        handleAlertRequest(nextAlertType);
+                      }
+                    }
+                  }, 500);
+                })
+                .catch(console.error);
+            }, 2000);
+          })
+          .catch(console.error);
+        }
+      });
+    }, 2000);
+  
+    // Stop simulation after 1 minute
+    setTimeout(() => {
+      clearInterval(simulationInterval);
+      setSimulationConfig(prev => ({ ...prev, isRunning: false }));
+      setClusters([]); // Clear clusters
+    }, 60000);
+  };
 
   // Core simulation function
   const runAlertSimulation = () => {
@@ -593,9 +700,21 @@ export const Map: React.FC = () => {
                       : 'bg-green-600 hover:bg-green-700'
                   } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
                 >
-                  {simulationConfig.isRunning ? 'Running...' : 'Start Simulation'}
+                  {simulationConfig.isRunning ? 'Running...' : 'Random Simulation'}
                 </button>
-                </div>
+                
+                <button
+                  onClick={runClusterSimulation}
+                  disabled={simulationConfig.isRunning || sessions.filter(s => s.isDummy).length === 0}
+                  className={`w-full ${
+                    simulationConfig.isRunning 
+                      ? 'bg-gray-500 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
+                >
+                  {simulationConfig.isRunning ? 'Running...' : 'Cluster Simulation'}
+                </button>
+              </div>
               </div>
             </div>
           </div>
