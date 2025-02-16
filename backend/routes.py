@@ -21,10 +21,14 @@ connection_lock = threading.Lock()
 def count_active_connections():
     current_time = time.time() * 1000
     with connection_lock:
-        # Filter out inactive sessions (older than 30 seconds)
+        # Count real (non-dummy) sessions that are active within last 30 seconds
         active_count = sum(
             1 for session in sessions.values()
-            if (current_time - session['timestamp'] < 30000 and not session.get('isDummy', False))
+            if (
+                current_time - session.get('timestamp', 0) < 30000 and  # Check last update within 30s
+                not session.get('isDummy', False) and                   # Not a dummy session
+                session.get('id') is not None                          # Valid session ID
+            )
         )
         return active_count
 
@@ -71,29 +75,31 @@ def update_location():
     data = request.json
     session_id = data.get('sessionId')
     position = data.get('position')
-    timestamp = data.get('timestamp')
+    timestamp = data.get('timestamp', time.time() * 1000)  # Default to current time if not provided
     joined_at = data.get('joinedAt', datetime.now().isoformat())
-    alert = data.get('alert')  # Add this line
+    alert = data.get('alert')
 
-    if not all([session_id, position, timestamp]):
+    if not all([session_id, position]):
         return jsonify({'error': 'Missing required fields'}), 400
 
     with session_lock:
         if session_id not in sessions:
+            # New session
             sessions[session_id] = {
                 'id': session_id,
                 'position': position,
                 'timestamp': timestamp,
                 'joinedAt': joined_at,
                 'ip': request.remote_addr,
-                'alert': alert  # Add this line
+                'alert': alert,
+                'isDummy': False  # Explicitly mark as real session
             }
         else:
-            # Update position, timestamp and alert for existing sessions
+            # Update existing session
             sessions[session_id].update({
                 'position': position,
                 'timestamp': timestamp,
-                'alert': alert  # Add this line
+                'alert': alert
             })
 
     return jsonify({'success': True})
@@ -104,6 +110,9 @@ def get_sessions():
     creator_id = request.args.get('creator_id')
     
     with session_lock:
+        # Get current active connection count
+        current_connections = count_active_connections()
+        
         # Get real sessions with their alerts
         real_sessions = [{
             'id': session['id'],
@@ -114,9 +123,9 @@ def get_sessions():
             'isDummy': False,
             'alert': session.get('alert'),
             'creatorId': session.get('creatorId'),
-            'activeConnections': count_active_connections()  # Add connection count
+            'activeConnections': current_connections  # Include in every real session
         } for session in sessions.values() if not session.get('isDummy', False)]
-
+        
         # Handle dummy sessions
         if dummy_count > 0:
             # Calculate center of mass
