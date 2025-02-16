@@ -156,47 +156,85 @@ export const Map: React.FC = () => {
   const [clusters, setClusters] = useState<ClusterInfo[]>([]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetch(`${API_URL}/api/location`, { method: 'GET' }) // Or a dedicated `/api/activeConnections`
-        .then(res => res.json())
-        .then(data => setActiveConnections(data.activeConnections ?? 0))
-        .catch(console.error);
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/sessions`, {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // Count non-dummy active sessions
+          const activeCount = data.filter((session: Session) => 
+            !session.isDummy && 
+            Date.now() - session.lastUpdate < 30000
+          ).length;
+          setActiveConnections(activeCount);
+        }
+      } catch (error) {
+        console.error('Failed to fetch active connections:', error);
+      }
     }, 3000);
   
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    // Immediately get location once
-    navigator.geolocation.getCurrentPosition(
+useEffect(() => {
+  // Initial position fetch
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+      setPosition(newPosition);
+      updateServerPosition(newPosition);
+      
+      // Add to sessions immediately
+      setSessions(prev => {
+        if (!prev.find(s => s.id === sessionId.current)) {
+          return [...prev, {
+            id: sessionId.current,
+            position: newPosition,
+            lastUpdate: Date.now(),
+            joinedAt: new Date().toISOString(),
+            isDummy: false,
+            alert: null
+          }];
+        }
+        return prev.map(s => 
+          s.id === sessionId.current 
+            ? { ...s, position: newPosition, lastUpdate: Date.now() }
+            : s
+        );
+      });
+    },
+    (err) => setLocationError(err.message),
+    { enableHighAccuracy: true }
+  );
+
+  // Continuous tracking
+  if (isTracking) {
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        setPosition([pos.coords.latitude, pos.coords.longitude]);
-        updateServerPosition([pos.coords.latitude, pos.coords.longitude]);
+        const newPosition: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setPosition(newPosition);
+        updateServerPosition(newPosition);
+        
+        // Update session position
+        setSessions(prev => prev.map(s => 
+          s.id === sessionId.current 
+            ? { ...s, position: newPosition, lastUpdate: Date.now() }
+            : s
+        ));
       },
       (err) => setLocationError(err.message),
       { enableHighAccuracy: true }
     );
-  
-    if (isTracking) {
-      // Continuously watch
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          setPosition([pos.coords.latitude, pos.coords.longitude]);
-          updateServerPosition([pos.coords.latitude, pos.coords.longitude]);
-        },
-        (err) => setLocationError(err.message),
-        { enableHighAccuracy: true }
-      );
-    } else if (watchIdRef.current !== null) {
+  }
+
+  return () => {
+    if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
-  
-    return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
-    };
+  };
   }, [isTracking]);
 
   useEffect(() => {
@@ -567,18 +605,25 @@ export const Map: React.FC = () => {
       const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}`);
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data: Session[] = await response.json();
-      const mapped = data.map(session => {
-        if (session.isDummy) {
-          session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        }
-        return session;
+      
+      setSessions(prev => {
+        const currentUserSession = prev.find(s => s.id === sessionId.current);
+        const otherSessions = data.map(session => {
+          if (session.isDummy) {
+            session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          }
+          return session;
+        });
+        
+        return currentUserSession 
+          ? [currentUserSession, ...otherSessions.filter(s => s.id !== sessionId.current)]
+          : otherSessions;
       });
-      setSessions(mapped);
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
   };
-
+  
   useEffect(() => {
     let mounted = true;
     const sessionInterval = setInterval(() => {
