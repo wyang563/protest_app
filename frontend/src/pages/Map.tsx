@@ -155,6 +155,8 @@ export const Map: React.FC = () => {
   const [usedAlertPositions, setUsedAlertPositions] = useState<Set<string>>(new Set());
   const [clusters, setClusters] = useState<ClusterInfo[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
+  const [showHeatmap, setShowHeatmap] = useState(true);
+
 
   useEffect(() => {
     const fetchActiveConnections = async () => {
@@ -595,7 +597,7 @@ export const Map: React.FC = () => {
       console.error('Failed updating server position:', error);
     }
   };
-    
+
   const fetchSessions = async (dummyCountParam?: number) => {
     try {
       const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}&creator_id=${sessionId.current}`, {
@@ -734,25 +736,45 @@ export const Map: React.FC = () => {
                 Location: {position[0].toFixed(4)}, {position[1].toFixed(4)}
               </p>
             )}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                onClick={handleCenterMap}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg
-                  transition-colors duration-200 flex items-center justify-center gap-2"
-              >
-                <span>Center Map</span>
-              </button>
-              <button
-                onClick={toggleTracking}
-                className={`flex-1 ${
-                  isTracking ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-                } text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2`}
-              >
-                {isTracking ? 'Stop Tracking' : 'Start Tracking'}
-              </button>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={handleCenterMap}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg
+                    transition-colors duration-200 flex items-center justify-center gap-2"
+                >
+                  <span>Center Map</span>
+                </button>
+                <button
+                  onClick={toggleTracking}
+                  className={`flex-1 ${
+                    isTracking ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+                  } text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2`}
+                >
+                  {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+                </button>
+              </div>
+              
+              {/* Heatmap Toggle */}
+              <div className="flex items-center justify-between gap-2 mt-2">
+                <span className="text-sm text-gray-300">Heatmap Overlay</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={showHeatmap}
+                    onChange={(e) => setShowHeatmap(e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 
+                    peer-focus:ring-blue-300 rounded-full peer 
+                    peer-checked:after:translate-x-full peer-checked:after:border-white 
+                    after:content-[''] after:absolute after:top-[2px] after:left-[2px] 
+                    after:bg-white after:border-gray-300 after:border after:rounded-full 
+                    after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
             </div>
-          </div>
-  
+          </div>  
           {/* Protester Controls */}
           <div className="bg-gray-700 p-4 rounded-lg">
             <h3 className="text-lg font-semibold mb-3">Protester Controls</h3>
@@ -871,15 +893,17 @@ export const Map: React.FC = () => {
                 maxZoom={22}
                 minZoom={3}
               />
-              <HeatmapLayer
-                fitBoundsOnLoad
-                fitBoundsOnUpdate
-                points={heatmapData}
-                longitudeExtractor={(point: [number, number, number]) => point?.[1] ?? 0}
-                latitudeExtractor={(point: [number, number, number]) => point?.[0] ?? 0}
-                intensityExtractor={(point: [number, number, number]) => point?.[2] ?? 0}
-                {...heatmapOptions}
-              />
+              {showHeatmap && (
+                <HeatmapLayer
+                  fitBoundsOnLoad
+                  fitBoundsOnUpdate
+                  points={heatmapData}
+                  longitudeExtractor={(point: [number, number, number]) => point?.[1] ?? 0}
+                  latitudeExtractor={(point: [number, number, number]) => point?.[0] ?? 0}
+                  intensityExtractor={(point: [number, number, number]) => point?.[2] ?? 0}
+                  {...heatmapOptions}
+                />
+              )}             
               <MapUpdater center={position} />
               {sessions?.map((session) => {
                 const isCurrentUser = session.id === sessionId.current;
