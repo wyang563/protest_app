@@ -8,6 +8,9 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useNavigate } from 'react-router-dom';
 import AudioRecorder from '../components/Recorder';
+import { getSentiment } from '../utils/sentimentUtils';  // We'll create this utility
+
+
 
 const API_URL = process.env.NODE_ENV === 'production'
   ? 'https://protest.morelos.dev'
@@ -81,7 +84,8 @@ interface Session {
   isDummy: boolean;
   creatorId?: string;
   ip?: string;
-  alert?: AlertType | null;  // Update this line to allow null
+  alert?: AlertType | null;
+  isTracking?: boolean;  // Add this field
 }
 
 const ALERT_CONFIGS: {
@@ -157,7 +161,11 @@ export const Map: React.FC = () => {
   const [clusters, setClusters] = useState<ClusterInfo[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [showHeatmap, setShowHeatmap] = useState(true);
-
+  const [displayedConnections, setDisplayedConnections] = useState<number>(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  
 
   useEffect(() => {
     const fetchActiveConnections = async () => {
@@ -171,26 +179,26 @@ export const Map: React.FC = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          setActiveConnections(data.active);
+          // Always show at least 1 if tracking is enabled locally
+          setDisplayedConnections(isTracking ? Math.max(1, data.active) : data.active);
         }
       } catch (error) {
         console.error('Failed to fetch active connections:', error);
+        // Still show 1 if tracking is enabled, even on error
+        setDisplayedConnections(isTracking ? 1 : 0);
       }
     };
-  
-    // Initial fetch
+
     fetchActiveConnections();
-  
-    // More frequent polling (every second)
     const interval = setInterval(fetchActiveConnections, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isTracking]); // Add isTracking as dependency
   
   
   useEffect(() => {
     if (isTracking) {
-      setConnectionStatus('connected');
       // Immediately notify server about connection
+      setConnectionStatus('connected');
       updateServerPosition(position).then(() => {
         // Force refresh active connections after connecting
         fetch(`${API_URL}/api/activeConnections`, {
@@ -280,17 +288,86 @@ export const Map: React.FC = () => {
             lastUpdate: Date.now(),
             joinedAt: new Date().toISOString(),
             isDummy: false,
-            alert: null
+            alert: null,
+            isTracking: isTracking // Add tracking status
           }
         ];
       }
       return prev.map(s => 
         s.id === sessionId.current 
-          ? { ...s, position, lastUpdate: Date.now() }
+          ? { ...s, position, lastUpdate: Date.now(), isTracking }
           : s
       );
     });
-  }, [position]);
+  }, [position, isTracking]); // Add isTracking to dependencies
+
+  // Add cleanup effect
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
+    };
+  }, []);
+
+  const analyzeSentimentFromAudio = async (audioBlob: Blob) => {
+    try {
+      const response = await fetch(`${API_URL}/transcribe`, {
+        method: 'POST',
+        body: audioBlob
+      });
+      
+      if (response.ok) {
+        const { transcription } = await response.json();
+        if (transcription) {
+          const sentiment = await getSentiment(transcription);
+          // Map sentiment to alert type
+          if (sentiment.label === "need supplies") handleAlertRequest("water");
+          else if (sentiment.label === "fleeing") handleAlertRequest("stayaway");
+          else if (sentiment.label === "medical emergency") handleAlertRequest("medical");
+          else if (sentiment.label === "advancing") handleAlertRequest("arrest");
+        }
+      }
+    } catch (error) {
+      console.error('Error analyzing audio:', error);
+    }
+  };
+
+  // Add this function to handle recording
+  const toggleRecording = async () => {
+    if (!isRecording) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const newAudioContext = new AudioContext();
+        setAudioContext(newAudioContext);
+        
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        
+        mediaRecorder.ondataavailable = async (e) => {
+          if (e.data.size > 0) {
+            await analyzeSentimentFromAudio(e.data);
+          }
+        };
+        
+        // Record in 3-second chunks
+        mediaRecorder.start(3000);
+        setIsRecording(true);
+      } catch (err) {
+        console.error('Failed to start recording:', err);
+      }
+    } else {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      if (audioContext) {
+        await audioContext.close();
+        setAudioContext(null);
+      }
+    }
+  };
 
   const runClusterSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
@@ -592,7 +669,7 @@ export const Map: React.FC = () => {
           timestamp: Date.now(),
           joinedAt: new Date().toISOString(),
           alert: alert,
-          status: isTracking ? 'connected' : 'disconnected'
+          isTracking: isTracking // Add this field
         }),
       });
       
@@ -604,7 +681,7 @@ export const Map: React.FC = () => {
       console.error('Failed updating server position:', error);
     }
   };
-
+  
   const fetchSessions = async (dummyCountParam?: number) => {
     try {
       const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}&creator_id=${sessionId.current}`, {
@@ -699,11 +776,11 @@ export const Map: React.FC = () => {
   };
 
   return (
-    <div className="p-4 min-h-screen bg-gray-900 text-gray-100 md:p-16">
-      <div className="flex flex-col lg:flex-row rounded-2xl gap-4">
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-16 flex items-center justify-center">
+    <div className="w-full max-w-[1400px] flex flex-col lg:flex-row gap-4">
         {/* Controls Section */}
-        <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2 rounded-2xl">
-          {/* Top Bar with Login Info and Network Status */}
+        <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 rounded-2xl">
+        {/* Top Bar with Login Info and Network Status */}
           <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-lg">
             {/* Login Info - Compact */}
             {user && (
@@ -724,7 +801,7 @@ export const Map: React.FC = () => {
                 connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'
               }`}></div>
               <span className="text-gray-300">
-                {activeConnections} active
+                {displayedConnections} active
               </span>
             </div>
           </div>
@@ -862,14 +939,19 @@ export const Map: React.FC = () => {
         </div>
   
         {/* Map Section - Square on mobile, flex on desktop */}
-        <div className="w-full lg:flex-1">
-          <div className="aspect-square lg:aspect-auto lg:h-[calc(100vh-8rem)] bg-gray-800 rounded-2xl overflow-hidden">
+        <div className="w-full lg:flex-1 flex items-center justify-center">
+          <div className="w-full aspect-square lg:aspect-auto lg:h-[80vh] bg-gray-800 rounded-2xl overflow-hidden relative">
             <MapContainer 
               center={position} 
               zoom={DEFAULT_ZOOM}
               style={{
                 width: '100%',
-                height: '100%'
+                height: '100%',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0
               }}
               ref={mapRef}
               zoomControl={true}
