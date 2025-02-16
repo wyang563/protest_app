@@ -197,7 +197,7 @@ export const Map: React.FC = () => {
     const simulationInterval = setInterval(() => {
       // Process each dummy session independently
       dummySessions.forEach(dummySession => {
-        // Check if this position is in the preferred direction (95% bias)
+        // Calculate angle between dummy and center position
         const angle = Math.atan2(
           dummySession.position[1] - position[1],
           dummySession.position[0] - position[0]
@@ -211,40 +211,41 @@ export const Map: React.FC = () => {
         // Consider positions within ±45° of target direction as "in direction"
         const isInDirection = angleDiff <= 45 || angleDiff >= 315;
         
-        // Apply directional bias - 95% chance to only use positions in direction
-        if (Math.random() > 0.95 || isInDirection) {
-          // Roll for alert chance (20% per 5 seconds for each dummy)
-          if (Math.random() < 0.2) {
-            const alertType = rollForAlert(simulationConfig.alertProbabilities);
-            if (!alertType) return;
-            
-            const newAlert: AlertMarker = {
-              id: crypto.randomUUID(),
-              position: dummySession.position,
-              type: alertType,
-              createdAt: Date.now(),
-              creatorId: dummySession.id
-            };
-            
-            // Send alert to server
-            fetch(`${API_URL}/api/alert`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(newAlert)
-            }).catch(console.error); // Add error handling
-          }
+        // Roll for alert chance (20% per 5 seconds for each dummy)
+        // Apply directional bias - if in direction, higher chance (95%) to trigger alert check
+        const shouldCheckAlert = isInDirection ? Math.random() < 0.95 : Math.random() < 0.05;
+        
+        if (shouldCheckAlert) {
+          const alertType = rollForAlert(simulationConfig.alertProbabilities);
+          if (!alertType) return; // Skip if no alert (50% chance)
+          
+          const newAlert: AlertMarker = {
+            id: crypto.randomUUID(),
+            position: dummySession.position,
+            type: alertType,
+            createdAt: Date.now(),
+            creatorId: dummySession.id
+          };
+          
+          // Send alert to server
+          fetch(`${API_URL}/api/alert`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(newAlert)
+          }).catch(console.error);
         }
       });
     }, 5000);
     
+    // Stop simulation after 1 minute
     setTimeout(() => {
       clearInterval(simulationInterval);
       setSimulationConfig(prev => ({ ...prev, isRunning: false }));
     }, 60000);
   };
-  
+    
   const calculateBiasedPosition = (
     basePosition: [number, number], 
     direction: number,
@@ -274,7 +275,7 @@ export const Map: React.FC = () => {
       return 'stayaway';  // 4% chance of stayaway
     }
   };
-  
+
   const handleLogout = async () => {
     try {
       await logout();
