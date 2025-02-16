@@ -3,3 +3,5 @@ numpy<2
 flask
 flask-cors
 requests
+transformers
+sentence-transformers

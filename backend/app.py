@@ -4,16 +4,62 @@ import whisper
 import os
 from routes import bp
 import sqlite3
+from transformers import pipeline
+from sentence_transformers import SentenceTransformer, util  # New import
 
 app = Flask(__name__)
 CORS(app, origins=["https://protest.morelos.dev", "http://localhost:3000"])
 
 app.register_blueprint(bp)
 
-# Load the Whisper model once at startup to avoid reloading on every request.
+# Load the our ML models once at startup to avoid reloading on every request.
 # You can choose a model size: tiny, base, small, medium, large.
 MODEL_TYPE = "base"
 model = whisper.load_model(MODEL_TYPE)
+classifier = pipeline("text-classification", model="martin-ha/toxic-comment-model", device=-1)
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Load the DistilBERT model once at startup to avoid reloading on every request.
+@app.route('/api/sentiment_analysis', methods=['GET'])
+@cross_origin(origin="https://protest.morelos.dev")
+def sentiment_analysis():
+    """
+    Run the sentiment analysis model, then compute sentence embeddings for the 
+    returned label using BERT (SentenceTransformers) and compare it to standard 
+    candidate labels to output the one most similar.
+    """
+    text = request.args.get('text')
+    if not text:
+        return jsonify({"error": "Missing text parameter for input to ML model"}), 400
+
+    # Run the sentiment analysis classifier
+    result = classifier(text)[0]
+    if not result:
+        return jsonify({"error": "Failed to classify text"}), 500
+    api_label = result.get("label", "")
+    api_score = result.get("score", 0)
+
+    # Define candidate labels
+    candidate_labels = ["need supplies", "fleeing", "medical emergency", "advancing"]
+
+    # Compute embeddings using the SentenceTransformer model
+    api_embedding = embedding_model.encode(api_label, convert_to_tensor=True)
+    candidate_embeddings = embedding_model.encode(candidate_labels, convert_to_tensor=True)
+
+    # Compute cosine similarity scores and pick the best matching candidate
+    cosine_scores = util.cos_sim(api_embedding, candidate_embeddings)
+    best_idx = int(cosine_scores.argmax())
+    best_candidate = candidate_labels[best_idx]
+    
+    # Optionally, include the similarity score (confidence) if desired:
+    similarity_confidence = cosine_scores[0][best_idx].item()
+
+    # Return the best matching candidate along with the original confidence score from the classifier
+    return jsonify({
+        "label": best_candidate,
+        "score": api_score,
+        "similarity_confidence": similarity_confidence
+    })
 
 @app.route('/api/query', methods=['GET'])
 @cross_origin(origin="https://protest.morelos.dev")
