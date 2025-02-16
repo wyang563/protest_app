@@ -160,80 +160,79 @@ export const Map: React.FC = () => {
   }, []);  
 
   useEffect(() => {
+    // Periodically fetch alerts
     const interval = setInterval(() => {
       fetchAlertMarkers();
     }, 2000);
-  
     return () => clearInterval(interval);
   }, []);
   
   useEffect(() => {
     return () => {
-      // When component unmounts, notify server about disconnection
+      // Notify server about disconnection
       fetch(`${API_URL}/api/location`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: sessionId.current,
           position: position,
-          timestamp: 0, // Use 0 to indicate disconnection
+          timestamp: 0,
           joinedAt: new Date().toISOString(),
           alert: null
         }),
       }).catch(console.error);
     };
-  }, []);
+  }, [position]);
 
   // Core simulation function
   const runAlertSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
-  
+
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
-    
-    const simulateAlerts = () => {
+
+    // Trigger alerts every 5 seconds
+    const simulationInterval = setInterval(() => {
       dummySessions.forEach(dummy => {
-        const alertType = rollForAlert(simulationConfig.alertProbabilities);
-        if (!alertType) return;
-  
-        const newAlert: AlertMarker = {
-          id: `alert-${dummy.id}-${Date.now()}`,
-          position: dummy.position,
-          type: alertType,
-          createdAt: Date.now(),
-          creatorId: dummy.id
-        };
-  
-        // Create alert
-        fetch(`${API_URL}/api/alert`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newAlert)
-        })
-        .then(() => {
-          // Remove alert after 2 seconds and create new one after 3 seconds
-          setTimeout(() => {
-            fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
-              .then(() => {
-                if (simulationConfig.isRunning) {
-                  setTimeout(() => {
-                    simulateAlerts();
-                  }, 3000);
-                }
-              });
-          }, 2000);
-        })
-        .catch(console.error);
+        // 20% chance
+        if (Math.random() < 0.2) {
+          const alertType = rollForAlert(simulationConfig.alertProbabilities);
+          if (!alertType) return;
+
+          const newAlert: AlertMarker = {
+            id: `alert-${dummy.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            position: dummy.position,
+            type: alertType,
+            createdAt: Date.now(),
+            creatorId: dummy.id
+          };
+
+          fetch(`${API_URL}/api/alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              markerId: newAlert.id,
+              position: newAlert.position,
+              type: newAlert.type,
+              creatorId: newAlert.creatorId,
+              createdAt: newAlert.createdAt
+            })
+          })
+          .then(() => {
+            // Remove each new alert after 2 seconds
+            setTimeout(() => {
+              fetch(`${API_URL}/api/alert/${newAlert.id}`, { method: 'DELETE' })
+                .catch(console.error);
+            }, 2000);
+          })
+          .catch(console.error);
+        }
       });
-    };
-  
-    // Start initial simulation
-    simulateAlerts();
-  
+    }, 5000);
+
     // Stop after 1 minute
     setTimeout(() => {
+      clearInterval(simulationInterval);
       setSimulationConfig(prev => ({ ...prev, isRunning: false }));
     }, 60000);
   };
@@ -242,7 +241,7 @@ export const Map: React.FC = () => {
   const rollForAlert = (probabilities: SimulationConfig['alertProbabilities']): AlertType['type'] | null => {
     const rollVal = Math.random();
     if (rollVal < probabilities.none) {
-      return null; // 50% chance no alert
+      return null;
     } else if (rollVal < probabilities.none + probabilities.water) {
       return 'water';
     } else if (rollVal < probabilities.none + probabilities.water + probabilities.medical) {
@@ -270,14 +269,7 @@ export const Map: React.FC = () => {
         time: new Date().toISOString(),
         sessionId: session.id.slice(0, 8),
         type: session.alert ? `Alert: ${session.alert.type}` : 'Circle',
-        position: session.position,
-        // Add debug info for alert conditions
-        alertConditions: {
-          hasAlert: !!session.alert,
-          hasAlertType: session.alert?.type,
-          configExists: session.alert?.type ? !!ALERT_CONFIGS[session.alert.type] : false,
-          fullCondition: !!(session.alert && session.alert.type && ALERT_CONFIGS[session.alert.type])
-        }
+        position: session.position
       });
     }
   };
@@ -308,7 +300,7 @@ export const Map: React.FC = () => {
       const response = await fetch(`${API_URL}/api/alerts`);
       if (!response.ok) throw new Error('Failed to fetch alerts');
       const data = await response.json();
-      setAlertMarkers(prev => [...data]);
+      setAlertMarkers(() => [...data]);
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
@@ -345,25 +337,11 @@ export const Map: React.FC = () => {
 
   // Add handleClearAlert function
   const handleClearAlert = () => {
-    console.log('[Clear Alert]', {
-      time: new Date().toISOString(),
-      previousType: activeAlert?.type,
-      sessionId: sessionId.current.slice(0, 8)
-    });
-    
     setActiveAlert(null);
-    updateServerPosition(position, null)
-      .then(() => {
-        console.log('[Clear Alert] Server updated successfully');
-        // Only fetch if we have dummy sessions
-        if (sessions.some(s => s.isDummy)) {
-          fetchSessions();
-        }
-      });
+    updateServerPosition(position, null);
   };
 
   const getSessionColor = (sId: string): string => {
-    // Use parseInt with base 16, mod by color count
     const colorIndex = parseInt(sId, 16) % DOT_COLORS.length;
     return DOT_COLORS[colorIndex];
   };
@@ -371,7 +349,7 @@ export const Map: React.FC = () => {
   const handleDummyCountSubmit = () => {
     const numDummies = parseInt(dummyCount) || 0;
     setSubmittedDummyCount(numDummies);
-    fetchSessions(numDummies); // Pass a count
+    fetchSessions(numDummies);
   };
   
   // Function to update server with position
@@ -396,16 +374,11 @@ export const Map: React.FC = () => {
   // Function to fetch all sessions
   const fetchSessions = async (dummyCountParam?: number) => {
     try {
-      // For example, pass dummy_count as query param
       const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}`);
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data: Session[] = await response.json();
-      // Set sessions with unique IDs (back-end should generate them, but ensure no collisions)
       const mapped = data.map(session => {
-        if (!session.isDummy) {
-          return session;
-        }
-        // Generate truly unique dummy IDs using timestamp and random string
+        if (!session.isDummy) return session;
         session.id = `dummy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         return session;
       });
@@ -422,7 +395,6 @@ export const Map: React.FC = () => {
       fetchSessions(submittedDummyCount);
     }, 2000);
 
-    // Attempt geolocation
     if ('geolocation' in navigator) {
       if (isTracking) {
         watchIdRef.current = navigator.geolocation.watchPosition(
@@ -435,9 +407,7 @@ export const Map: React.FC = () => {
             console.error(err);
             setLocationError('Unable to retrieve location.');
           },
-          {
-            enableHighAccuracy: true
-          }
+          { enableHighAccuracy: true }
         );
       } else if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
@@ -460,12 +430,10 @@ export const Map: React.FC = () => {
     }
   };
 
-  // Toggle geolocation tracking
   const toggleTracking = () => {
     setIsTracking(!isTracking);
   };
   
-
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
       {/* Main Container - Flex column on mobile, row on desktop */}
