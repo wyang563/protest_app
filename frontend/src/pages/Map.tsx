@@ -195,49 +195,30 @@ export const Map: React.FC = () => {
     setSimulationConfig(prev => ({ ...prev, isRunning: true }));
     
     const simulationInterval = setInterval(() => {
-      // Roll for alert every 5 seconds
-      if (Math.random() < 0.2) {  // 20% chance per 5-second interval
-        const alertType = rollForAlert(simulationConfig.alertProbabilities);
-        if (!alertType) return;
-        
-        // Get position from a random dummy
-        const biasedPosition = calculateBiasedPosition(
-          position, 
-          simulationConfig.direction,
-          dummySessions
-        );
-        
-        // Create alert using the dummy's position
-        const newAlert: AlertMarker = {
-          id: crypto.randomUUID(),
-          position: biasedPosition,
-          type: alertType,
-          createdAt: Date.now(),
-          creatorId: dummySessions[Math.floor(Math.random() * dummySessions.length)].id
-        };
-        
-        // Send alert to server
-        fetch(`${API_URL}/api/alert`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            markerId: newAlert.id,
-            position: newAlert.position,
-            type: newAlert.type,
-            creatorId: newAlert.creatorId,
-            createdAt: newAlert.createdAt
-          })
-        });
-        
-        // Remove alert after 2 seconds
-        setTimeout(() => {
-          fetch(`${API_URL}/api/alert/${newAlert.id}`, {
-            method: 'DELETE'
+      dummySessions.forEach(dummySession => {
+        // Roll for alert every 5 seconds (20% chance)
+        if (Math.random() < 0.2) {
+          const alertType = rollForAlert(simulationConfig.alertProbabilities);
+          if (!alertType) return;
+          
+          const newAlert: AlertMarker = {
+            id: crypto.randomUUID(),
+            position: dummySession.position,  // Use dummy's exact position
+            type: alertType,
+            createdAt: Date.now(),
+            creatorId: dummySession.id
+          };
+          
+          // Send alert to server
+          fetch(`${API_URL}/api/alert`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(newAlert)
           });
-        }, 2000);
-      }
+        }
+      });
     }, 5000);
     
     setTimeout(() => {
@@ -660,11 +641,11 @@ export const Map: React.FC = () => {
           {/* Simulation Controls */}
           <div className="bg-gray-700 p-4 rounded-lg">
             <h3 className="text-lg font-semibold mb-3">Simulation Development</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               {/* Dummy Controls */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <label htmlFor="dummyCount" className="text-sm text-gray-300">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="dummyCount" className="text-xs text-gray-300 whitespace-nowrap">
                     Dummy Users:
                   </label>
                   <input
@@ -674,23 +655,23 @@ export const Map: React.FC = () => {
                     max="1000"
                     value={dummyCount}
                     onChange={(e) => setDummyCount(e.target.value)}
-                    className="w-24 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white"
+                    className="w-16 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white text-xs"
                   />
                 </div>
                 <button
                   onClick={handleDummyCountSubmit}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg
-                    transition-colors duration-200 flex items-center justify-center gap-2"
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg
+                    transition-colors duration-200 flex items-center justify-center text-xs"
                 >
-                  Add Dummy Users
+                  Add Dummies
                 </button>
               </div>
 
               {/* Alert Simulation Controls */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <label htmlFor="direction" className="text-sm text-gray-300">
-                    Direction (0-360°):
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="direction" className="text-xs text-gray-300 whitespace-nowrap">
+                    Direction:
                   </label>
                   <input
                     id="direction"
@@ -699,7 +680,7 @@ export const Map: React.FC = () => {
                     max="360"
                     value={directionInput}
                     onChange={(e) => setDirectionInput(e.target.value)}
-                    className="w-24 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white"
+                    className="w-16 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white text-xs"
                   />
                 </div>
                 <button
@@ -715,14 +696,15 @@ export const Map: React.FC = () => {
                     simulationConfig.isRunning 
                       ? 'bg-gray-500 cursor-not-allowed' 
                       : 'bg-green-600 hover:bg-green-700'
-                  } text-white px-4 py-2 rounded-lg transition-colors duration-200`}
+                  } text-white px-3 py-1.5 rounded-lg transition-colors duration-200 text-xs`}
                 >
-                  {simulationConfig.isRunning ? 'Simulation Running...' : 'Start Alert Simulation'}
+                  {simulationConfig.isRunning ? 'Running...' : 'Start Simulation'}
                 </button>
                 </div>
               </div>
             </div>
           </div>
+
         {/* Map Section - Scrollable on mobile, fixed on desktop */}
         <div className="flex-1 p-4 order-2 lg:order-1 min-h-[60vh] lg:h-full">
           <div className="h-full rounded-lg overflow-hidden shadow-2xl relative map-container">
