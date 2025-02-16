@@ -698,10 +698,10 @@ export const Map: React.FC = () => {
   };
 
   return (
-    <div className="p-6 min-h-screen bg-gray-900 text-gray-100 fixed inset-0 flex md:p-16">
-      <div className="flex flex-col lg:flex-row w-full h-full rounded-lg">
+    <div className="p-4 min-h-screen bg-gray-900 text-gray-100 fixed inset-0 flex md:p-16">
+      <div className="flex flex-col lg:flex-row w-full h-full rounded-2xl">
         {/* Controls Section */}
-        <div className="w-full lg:w-96 flex-shrink-0 overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2 rounded-lg">
+        <div className="w-full lg:w-96 flex-shrink-0 overflow-auto bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2 rounded-2xl">
           {/* Top Bar with Login Info and Network Status */}
           <div className="flex justify-between items-center bg-gray-700/50 p-2 rounded-lg">
             {/* Login Info - Compact */}
@@ -856,24 +856,23 @@ export const Map: React.FC = () => {
           </div>
         </div>
   
-        {/* Map Section */}
-        <div className="flex-1 p-4 order-2 lg:order-1 relative">
-          <div className="absolute inset-0 m-4">
-            <div className="h-full rounded-lg overflow-hidden shadow-2xl">
-              <MapContainer 
-                center={position} 
-                zoom={DEFAULT_ZOOM}
-                style={mapStyle}
-                ref={mapRef}
-                zoomControl={true}
-                attributionControl={false}
-                dragging={true}
-                scrollWheelZoom={true}
-                doubleClickZoom={true}
-                touchZoom={true}
-                tap={true}
-                className="z-0 h-full"
-              >
+        {/* Map Section - Square on mobile */}
+        <div className="w-full aspect-square lg:aspect-auto lg:flex-1 bg-gray-800 rounded-2xl overflow-hidden">
+          <div className="h-full w-full">
+            <MapContainer 
+              center={position} 
+              zoom={DEFAULT_ZOOM}
+              style={mapStyle}
+              ref={mapRef}
+              zoomControl={true}
+              attributionControl={false}
+              dragging={true}
+              scrollWheelZoom={true}
+              doubleClickZoom={true}
+              touchZoom={true}
+              tap={true}
+              className="h-full w-full"
+            >
               <TileLayer
                 url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
                 className="map-tiles"
@@ -983,7 +982,6 @@ export const Map: React.FC = () => {
                 </Marker>
               ))}
             </MapContainer>
-          </div>
         </div>
       </div>
     </div>
