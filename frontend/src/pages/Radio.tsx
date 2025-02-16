@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { utcToLocalString, localToUTCString } from '../utils';
 
 // If using Bootstrap, remember to import it somewhere, e.g.:
 // import 'bootstrap/dist/css/bootstrap.min.css';
@@ -18,17 +19,6 @@ function getSentiment(radioStream: string): string {
   if (radioStream.toLowerCase().includes("b")) return "fleeing";
   if (radioStream.toLowerCase().includes("c")) return "needs rescue";
   return "advancing";
-}
-
-function utcToLocalString(utcString: string, timeZone: string): string {
-  const dateObj = new Date(utcString);
-  return dateObj.toLocaleString('en-US', { timeZone });
-}
-
-function localToUTCString(localDateTime: string): string | null {
-  if (!localDateTime) return null;
-  const d = new Date(localDateTime);
-  return d.toISOString(); // from local to UTC
 }
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';

@@ -7,6 +7,7 @@ import sys
 import whisper
 import threading
 import sqlite3
+import argparse
 
 # A global lock to help with any directory access if needed
 directory_lock = threading.Lock()
@@ -134,8 +135,14 @@ def init_stream_process(stream_name, stream_url, model):
     transcribe_thread.join()
 
 if __name__ == "__main__":
-    MODEL_TYPE = "base"
-    model = whisper.load_model(MODEL_TYPE)
+    # USAGE: python radio_listener.py --stream_name "your stream name" --stream_url "your stream url -- model_type "your model type"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--stream_name", help="Name of the radio stream")
+    parser.add_argument("--stream_url", help="URL of the radio stream")
+    parser.add_argument("--model_type", help="Type of the model to use")
+    args = parser.parse_args()
+
+    model = whisper.load_model(args.model_type)
 
     # create SQLite database if it doesn't exist
     db_file = "../backend/transcriptions.db"
@@ -152,7 +159,5 @@ if __name__ == "__main__":
     conn.commit()
 
     # stream_search_url = "https://de1.api.radio-browser.info/json/stations"
-    stream_url = "https://tunein.cdnstream1.com/2868_96.mp3"
-    stream_name = "CNN" 
 
-    init_stream_process(stream_name, stream_url, model)
+    init_stream_process(args.stream_name, args.stream_url, model)

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { utcToLocalString } from '../utils';
 
 interface Transcription {
   id: number;
@@ -14,6 +15,10 @@ const HeadRadio: React.FC = () => {
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([]);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
+
+  const [userTimeZone, setUserTimeZone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
 
   useEffect(() => {
     const fetchTranscriptions = async () => {
@@ -58,7 +63,7 @@ const HeadRadio: React.FC = () => {
               >
                 <td className="border border-gray-300 px-4 py-2">{transcription.id}</td>
                 <td className="border border-gray-300 px-4 py-2">{transcription.radio_stream}</td>
-                <td className="border border-gray-300 px-4 py-2">{transcription.start_time}</td>
+                <td className="border border-gray-300 px-4 py-2">{utcToLocalString(transcription.start_time + 'Z', userTimeZone)}</td>
                 <td className="border border-gray-300 px-4 py-2">{transcription.text}</td>
               </tr>
             ))}
