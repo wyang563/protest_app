@@ -85,10 +85,10 @@ def update_location():
 @bp.route('/api/sessions', methods=['GET'])
 def get_sessions():
     dummy_count = request.args.get('dummy_count', default=0, type=int)
-    creator_id = request.args.get('creator_id')  # Get the creator's session ID
+    creator_id = request.args.get('creator_id')
     
     with session_lock:
-        # Get real sessions
+        # Get real sessions with their alerts
         real_sessions = [{
             'id': session['id'],
             'position': session['position'],
@@ -96,7 +96,8 @@ def get_sessions():
             'joinedAt': session['joinedAt'],
             'ip': session['ip'],
             'isDummy': False,
-            'alert': session.get('alert')  # Add this line
+            'alert': session.get('alert'),  # Preserve alerts
+            'creatorId': session.get('creatorId')
         } for session in sessions.values() if not session.get('isDummy', False)]
         
         # Handle dummy sessions

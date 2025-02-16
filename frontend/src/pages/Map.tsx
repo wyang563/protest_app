@@ -498,23 +498,22 @@ export const Map: React.FC = () => {
                   const isCurrentUser = session.id === sessionId.current;
                   
                   // Add debug logging for alert state
-                  if (isCurrentUser) {
-                    console.log('[Render State]', {
-                      id: session.id.slice(0, 8),
-                      hasAlert: !!session.alert,
-                      alertType: session.alert?.type,
-                      time: new Date().toISOString()
-                    });
-                  }                  
-                  // For current user, strictly use local alert state
-                  const shouldShowAlert = isCurrentUser ? 
-                    !!activeAlert : 
-                    !!(session.alert && session.alert.type && ALERT_CONFIGS[session.alert.type]);
+                  console.log('[Session Alert State]', {
+                    id: session.id.slice(0, 8),
+                    isCurrentUser,
+                    hasAlert: !!session.alert,
+                    alertType: session.alert?.type,
+                    time: new Date().toISOString()
+                  });
 
-                  if (shouldShowAlert && session.alert?.type) {
+                  // Check for valid alert - either from local state (current user) or from server (other users)
+                  const effectiveAlert = isCurrentUser ? activeAlert : session.alert;
+                  const shouldShowAlert = effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type];
+
+                  if (shouldShowAlert) {
                     logMarkerChange(session, 'Rendering Alert Marker');
-                    const alertConfig = ALERT_CONFIGS[session.alert.type];
-                    
+                    const alertConfig = ALERT_CONFIGS[effectiveAlert.type];
+
                     return (
                       <Marker 
                         key={session.id}
@@ -529,7 +528,7 @@ export const Map: React.FC = () => {
                           <div className="p-2">
                             <h3 className="font-bold mb-2">
                               {session.isDummy ? 'Simulated User' : 
-                              session.id === sessionId.current ? 'You' : 'Other Protester'}
+                              isCurrentUser ? 'You' : 'Other Protester'}
                             </h3>
                             <ul className="text-sm">
                               <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
