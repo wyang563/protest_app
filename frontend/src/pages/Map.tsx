@@ -573,7 +573,7 @@ export const Map: React.FC = () => {
   
         {/* Map Section - Scrollable on mobile, fixed on desktop */}
         <div className="flex-1 p-4 order-2 lg:order-1 min-h-[60vh] lg:h-full">
-          <div className="h-full rounded-lg overflow-hidden shadow-2xl">
+          <div className="h-full rounded-lg overflow-hidden shadow-2xl relative map-container">
             <MapContainer 
               center={position} 
               zoom={DEFAULT_ZOOM}
@@ -588,6 +588,20 @@ export const Map: React.FC = () => {
               tap={true}
               className="z-0"
             >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+              <HeatmapLayer
+                fitBoundsOnLoad
+                fitBoundsOnUpdate
+                points={heatmapData}
+                longitudeExtractor={(point: [number, number, number]) => point?.[1] ?? 0}
+                latitudeExtractor={(point: [number, number, number]) => point?.[0] ?? 0}
+                intensityExtractor={(point: [number, number, number]) => point?.[2] ?? 0}
+                {...heatmapOptions}
+              />
+              <MapUpdater center={position} />
                 {sessions.map((session) => {
                   const isCurrentUser = session.id === sessionId.current;
                   
