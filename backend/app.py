@@ -2,8 +2,10 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import whisper
 import os
-from routes import bp
+from routes import routes_bp
+from auth import auth_bp, init_auth_db
 import sqlite3
+from datetime import timedelta
 
 app = Flask(__name__) # here
 
