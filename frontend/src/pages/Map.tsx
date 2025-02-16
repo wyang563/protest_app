@@ -442,41 +442,152 @@ export const Map: React.FC = () => {
     setIsTracking(!isTracking);
   };
   
+
   return (
-    <div className="h-screen flex bg-gray-900 text-gray-100">
-      {/* Left Side - Map */}
-      <div className="flex-1 p-4">
-        <div className="h-full rounded-lg overflow-hidden shadow-2xl">
-          <MapContainer 
-            center={position} 
-            zoom={DEFAULT_ZOOM}
-            style={mapStyle}
-            ref={mapRef}
-            zoomControl={true}
-            attributionControl={false}
-            dragging={true}
-            scrollWheelZoom={true}
-            doubleClickZoom={true}
-            touchZoom={true}
-            tap={true}
-            className="z-0"
-          >
-            <MapUpdater center={position} />
-            <TileLayer
-              url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
-              className="map-tiles"
-              maxZoom={22}
-              minZoom={3}
-            />
-            <HeatmapLayer
-              fitBoundsOnLoad
-              fitBoundsOnUpdate
-              points={heatmapData}
-              longitudeExtractor={(point: [number, number, number]) => point?.[1] ?? 0}
-              latitudeExtractor={(point: [number, number, number]) => point?.[0] ?? 0}
-              intensityExtractor={(point: [number, number, number]) => point?.[2] ?? 0}
-              {...heatmapOptions}
-            />
+    <div className="min-h-screen bg-gray-900 text-gray-100">
+      {/* Main Container - Flex column on mobile, row on desktop */}
+      <div className="flex flex-col lg:flex-row h-screen">
+        {/* Controls Section - Full width on mobile, sidebar on desktop */}
+        <div className="w-full lg:w-96 bg-gray-800 p-4 lg:p-6 flex flex-col gap-4 lg:gap-6 order-1 lg:order-2">
+          {/* User Info & Logout - Now as a normal block */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            {user && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <span className="text-sm">
+                  <span className="text-gray-400">Logged in as:</span>{" "}
+                  <span className="font-semibold">{user.username}</span>
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm transition-colors w-full sm:w-auto"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+  
+          {/* Connection Counter */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Network Status</h3>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500"></div>
+              <span className="text-sm">
+                Active Connections: <span className="font-bold">{activeConnections}</span>
+              </span>
+            </div>
+          </div>
+  
+          {/* Map & Location Controls */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-3">Map & Location Controls</h3>
+            {locationError ? (
+              <p className="text-red-400 text-sm mb-3">{locationError}</p>
+            ) : (
+              <p className="text-green-400 text-sm mb-3">
+                Location: {position[0].toFixed(4)}, {position[1].toFixed(4)}
+              </p>
+            )}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={handleCenterMap}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg
+                  transition-colors duration-200 flex items-center justify-center gap-2"
+              >
+                <span>Center Map</span>
+              </button>
+              <button
+                onClick={toggleTracking}
+                className={`flex-1 ${
+                  isTracking ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+                } text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2`}
+              >
+                {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+              </button>
+            </div>
+          </div>
+  
+          {/* Protester Controls */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-3">Protester Controls</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(ALERT_CONFIGS).map(([type, config]) => (
+                <button
+                  key={type}
+                  onClick={() => handleAlertRequest(type as AlertType['type'])}
+                  className={`${
+                    activeAlert?.type === type ? 'ring-2 ring-white' : ''
+                  } ${
+                    type === 'water' ? 'bg-blue-600 hover:bg-blue-700' :
+                    type === 'medical' ? 'bg-red-600 hover:bg-red-700' :
+                    type === 'arrest' ? 'bg-yellow-600 hover:bg-yellow-700' :
+                    'bg-red-800 hover:bg-red-900'
+                  } text-white p-3 rounded-lg flex items-center justify-center gap-2 transition-colors`}
+                  title={config.tooltip}
+                >
+                  <img src={config.icon} alt={type} className="w-5 h-5" />
+                  <span className="text-sm">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                </button>
+              ))}
+            </div>
+            {activeAlert && (
+              <button
+                onClick={handleClearAlert}
+                className="w-full mt-2 bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg
+                  flex items-center justify-center gap-2 transition-colors"
+                title="Clear Alert"
+              >
+                Clear Alert
+              </button>
+            )}
+          </div>
+  
+          {/* Simulation Controls */}
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-3">Simulation Development</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <label htmlFor="dummyCount" className="text-sm text-gray-300">
+                  Dummy Users:
+                </label>
+                <input
+                  id="dummyCount"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  value={dummyCount}
+                  onChange={(e) => setDummyCount(e.target.value)}
+                  className="w-24 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white"
+                />
+              </div>
+              <button
+                onClick={handleDummyCountSubmit}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg
+                  transition-colors duration-200 flex items-center justify-center gap-2"
+              >
+                Add Dummy Users
+              </button>
+            </div>
+          </div>
+        </div>
+  
+        {/* Map Section - Scrollable on mobile, fixed on desktop */}
+        <div className="flex-1 p-4 order-2 lg:order-1 min-h-[60vh] lg:h-full">
+          <div className="h-full rounded-lg overflow-hidden shadow-2xl">
+            <MapContainer 
+              center={position} 
+              zoom={DEFAULT_ZOOM}
+              style={mapStyle}
+              ref={mapRef}
+              zoomControl={true}
+              attributionControl={false}
+              dragging={true}
+              scrollWheelZoom={true}
+              doubleClickZoom={true}
+              touchZoom={true}
+              tap={true}
+              className="z-0"
+            >
                 {sessions.map((session) => {
                   const isCurrentUser = session.id === sessionId.current;
                   
@@ -586,391 +697,10 @@ export const Map: React.FC = () => {
                   </Popup>
                 </Marker>
               ))}
-          </MapContainer>
-        </div>
-      </div>
-  
-      {/* Right Side - Controls */}
-      <div className="w-96 bg-gray-800 p-6 flex flex-col gap-6 relative">
-        {/* Top - User Info & Logout */}
-        <div className="absolute top-4 right-4">
-          {user && (
-            <div className="flex items-center gap-3 bg-gray-700 px-4 py-2 rounded-lg">
-              <span className="text-sm">
-                <span className="text-gray-400">Logged in as:</span>{" "}
-                <span className="font-semibold">{user.username}</span>
-              </span>
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          )}
-        </div>
-  
-        {/* Connection Counter */}
-        <div className="bg-gray-700 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold mb-2">Network Status</h3>
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-green-500"></div>
-            <span className="text-sm">
-              Active Connections: <span className="font-bold">{activeConnections}</span>
-            </span>
-          </div>
-        </div>
-  
-        {/* Map & Location Controls */}
-        <div className="bg-gray-700 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3">Map & Location Controls</h3>
-          {locationError ? (
-            <p className="text-red-400 text-sm mb-3">{locationError}</p>
-          ) : (
-            <p className="text-green-400 text-sm mb-3">
-              Location: {position[0].toFixed(4)}, {position[1].toFixed(4)}
-            </p>
-          )}
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={handleCenterMap}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg
-                transition-colors duration-200 flex items-center justify-center gap-2"
-            >
-              <span>Center Map</span>
-            </button>
-            <button
-              onClick={toggleTracking}
-              className={`${
-                isTracking ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-              } text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2`}
-            >
-              {isTracking ? 'Stop Tracking' : 'Start Tracking'}
-            </button>
-          </div>
-        </div>
-  
-        {/* Protester Controls */}
-        <div className="bg-gray-700 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3">Protester Controls</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {Object.entries(ALERT_CONFIGS).map(([type, config]) => (
-              <button
-                key={type}
-                onClick={() => handleAlertRequest(type as AlertType['type'])}
-                className={`${
-                  activeAlert?.type === type ? 'ring-2 ring-white' : ''
-                } ${
-                  type === 'water' ? 'bg-blue-600 hover:bg-blue-700' :
-                  type === 'medical' ? 'bg-red-600 hover:bg-red-700' :
-                  type === 'arrest' ? 'bg-yellow-600 hover:bg-yellow-700' :
-                  'bg-red-800 hover:bg-red-900'
-                } text-white p-3 rounded-lg flex items-center justify-center gap-2 transition-colors`}
-                title={config.tooltip}
-              >
-                <img src={config.icon} alt={type} className="w-5 h-5" />
-                <span className="text-sm">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
-              </button>
-            ))}
-          </div>
-          {activeAlert && (
-            <button
-              onClick={handleClearAlert}
-              className="w-full mt-2 bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg
-                flex items-center justify-center gap-2 transition-colors"
-              title="Clear Alert"
-            >
-              Clear Alert
-            </button>
-          )}
-        </div>
-  
-        {/* Simulation Controls */}
-        <div className="bg-gray-700 p-4 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3">Simulation Development</h3>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <label htmlFor="dummyCount" className="text-sm text-gray-300">
-                Dummy Users:
-              </label>
-              <input
-                id="dummyCount"
-                type="number"
-                min="0"
-                max="1000"
-                value={dummyCount}
-                onChange={(e) => setDummyCount(e.target.value)}
-                className="w-24 px-2 py-1 rounded bg-gray-600 border border-gray-500 text-white"
-              />
-            </div>
-            <button
-              onClick={handleDummyCountSubmit}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg
-                transition-colors duration-200 flex items-center justify-center gap-2"
-            >
-              Add Dummy Users
-            </button>
+            </MapContainer>
           </div>
         </div>
       </div>
     </div>
   );
-
-  // return (
-  //     <div className="h-screen flex flex-col">
-  //       <div className="p-4 bg-gray-100">
-  //         <div className="flex justify-between items-center mb-4">
-  //           <h1 className="text-2xl">Protest Map</h1>
-  //           <div className="flex items-center gap-4">
-  //             <div className="text-gray-600 bg-white px-4 py-2 rounded-lg shadow">
-  //               <span>Active Connections: <span className="font-bold">{activeConnections}</span></span>
-  //             </div>
-  //             {user && (
-  //               <div className="text-gray-600 bg-white px-4 py-2 rounded-lg shadow flex items-center gap-4">
-  //                 <span>Logged in as: <span className="font-semibold">{user.username}</span></span>
-  //                 <button
-  //                   onClick={handleLogout}
-  //                   className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm"
-  //                 >
-  //                   Logout
-  //                 </button>
-  //               </div>
-  //             )}
-  //           </div>
-  //         </div>          
-  //       {/* Location Status and Controls */}
-  //       <div className="mb-4">
-  //         <h2 className="text-xl mb-2">Location Status</h2>
-  //         <div className="flex items-center gap-4">
-  //           {locationError ? (
-  //             <p className="text-red-500 font-medium">{locationError}</p>
-  //           ) : (
-  //             <p className="text-green-500 font-medium">
-  //               Location: {position[0].toFixed(4)}, {position[1].toFixed(4)}
-  //             </p>
-  //           )}
-  //           <button
-  //             onClick={handleCenterMap}
-  //             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg
-  //               transition-colors duration-200 ease-in-out transform hover:scale-105 
-  //               active:scale-95 shadow-lg focus:outline-none focus:ring-2 
-  //               focus:ring-blue-500 focus:ring-opacity-50"
-  //           >
-  //             Center Map
-  //           </button>
-  //           <button
-  //             onClick={toggleTracking}
-  //             className={`${
-  //               isTracking ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
-  //             } text-white px-4 py-2 rounded-lg transition-colors duration-200 ease-in-out 
-  //             transform hover:scale-105 active:scale-95 shadow-lg focus:outline-none focus:ring-2 
-  //             focus:ring-opacity-50`}
-  //           >
-  //             {isTracking ? 'Stop Tracking' : 'Start Tracking'}
-  //           </button>
-  //           <div className="flex items-center gap-2">
-  //             <label htmlFor="dummyCount" className="text-sm font-medium">
-  //               Dummy Users:
-  //             </label>
-  //             <input
-  //               id="dummyCount"
-  //               type="number"
-  //               min="0"
-  //               max="1000"
-  //               value={dummyCount}
-  //               onChange={(e) => setDummyCount(e.target.value)} // Remove parseInt
-  //               className="w-20 px-2 py-1 border rounded-lg"
-  //             />
-  //             <button
-  //               onClick={handleDummyCountSubmit}
-  //               className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg
-  //                 transition-colors duration-200 ease-in-out transform hover:scale-105 
-  //                 active:scale-95 shadow-lg focus:outline-none focus:ring-2 
-  //                 focus:ring-purple-500 focus:ring-opacity-50"
-  //             >
-  //               Add Dummies
-  //             </button>
-  //           </div>
-  //         </div>
-  //       </div>
-  //     </div>
-
-  //     <div className="flex gap-2">
-  //       {Object.entries(ALERT_CONFIGS).map(([type, config]) => (
-  //         <button
-  //           key={type}
-  //           onClick={() => handleAlertRequest(type as AlertType['type'])}
-  //           className={`${
-  //             activeAlert?.type === type 
-  //               ? 'ring-2 ring-white' 
-  //               : ''
-  //           } ${
-  //             type === 'water' ? 'bg-blue-500 hover:bg-blue-600' :
-  //             type === 'medical' ? 'bg-red-500 hover:bg-red-600' :
-  //             type === 'arrest' ? 'bg-yellow-500 hover:bg-yellow-600' :
-  //             'bg-red-700 hover:bg-red-800'
-  //           } text-white p-2 rounded-lg flex items-center gap-1`}
-  //           title={config.tooltip}
-  //         >
-  //           <img src={config.icon} alt={type} className="w-6 h-6" />
-  //           {type.charAt(0).toUpperCase() + type.slice(1)}
-  //         </button>
-  //       ))}
-  //         {activeAlert && (
-  //           <button
-  //             onClick={handleClearAlert}
-  //             className="bg-gray-500 hover:bg-gray-600 text-white p-2 rounded-lg flex items-center gap-1"
-  //             title="Clear Alert"
-  //           >
-  //             Clear Alert
-  //           </button>
-  //         )}
-  //     </div>
-  //     {/* Map Section */}
-  //     <div className="flex-1 p-4"></div>
-  //       <div className="h-[600px] w-[600px] mx-auto rounded-lg overflow-hidden shadow-lg">
-  //         <MapContainer 
-  //           center={position} 
-  //           zoom={DEFAULT_ZOOM} // Use default zoom instead of 15
-  //           style={mapStyle}
-  //           ref={mapRef} // Fix ref assignment
-  //           zoomControl={true}
-  //           attributionControl={false}
-  //           dragging={true}
-  //           scrollWheelZoom={true}
-  //           doubleClickZoom={true}
-  //           touchZoom={true}
-  //           tap={true}
-  //         >
-  //           <MapUpdater center={position} />
-  //           <TileLayer
-  //             // Original URL (requires authentication):
-  //             url="https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png"
-  //             // url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-  //             className="map-tiles"
-  //             maxZoom={22}
-  //             minZoom={3}
-  //           />
-  //             <HeatmapLayer
-  //               fitBoundsOnLoad
-  //               fitBoundsOnUpdate
-  //               points={heatmapData}
-  //               longitudeExtractor={(point: [number, number, number]) => point?.[1] ?? 0}
-  //               latitudeExtractor={(point: [number, number, number]) => point?.[0] ?? 0}
-  //               intensityExtractor={(point: [number, number, number]) => point?.[2] ?? 0}
-  //               {...heatmapOptions}
-  //             />            
-  //               {sessions.map((session) => {
-  //                 const isCurrentUser = session.id === sessionId.current;
-                  
-  //                 // Add debug logging for alert state
-  //                 console.log('[Session Alert State]', {
-  //                   id: session.id.slice(0, 8),
-  //                   isCurrentUser,
-  //                   hasAlert: !!session.alert,
-  //                   alertType: session.alert?.type,
-  //                   time: new Date().toISOString()
-  //                 });
-
-  //                 // Check for valid alert - either from local state (current user) or from server (other users)
-  //                 const effectiveAlert = isCurrentUser ? activeAlert : session.alert;
-  //                 const shouldShowAlert = effectiveAlert?.type && ALERT_CONFIGS[effectiveAlert.type];
-
-  //                 if (shouldShowAlert) {
-  //                   logMarkerChange(session, 'Rendering Alert Marker');
-  //                   const alertConfig = ALERT_CONFIGS[effectiveAlert.type];
-
-  //                   return (
-  //                     <Marker 
-  //                       key={session.id}
-  //                       position={session.position}
-  //                       icon={L.divIcon({
-  //                         html: `<img src="${alertConfig.icon}" class="w-6 h-6" />`,
-  //                         className: '',
-  //                         iconSize: alertConfig.size as PointTuple,
-  //                       })}
-  //                     >
-  //                       <Popup>
-  //                         <div className="p-2">
-  //                           <h3 className="font-bold mb-2">
-  //                             {session.isDummy ? 'Simulated User' : 
-  //                             isCurrentUser ? 'You' : 'Other Protester'}
-  //                           </h3>
-  //                           <ul className="text-sm">
-  //                             <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
-  //                             <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
-  //                             <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
-  //                             <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
-  //                             {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
-  //                             <li className="text-red-500">
-  //                               <strong>{alertConfig.tooltip}</strong>
-  //                             </li>
-  //                           </ul>
-  //                         </div>
-  //                       </Popup>
-  //                     </Marker>
-  //                   );
-  //                 }
-
-  //                 // If no valid alert, render circle marker
-  //                 logMarkerChange(session, 'Rendering Circle Marker');
-  //                 return (
-  //                   <CircleMarker 
-  //                     key={session.id}
-  //                     center={session.position}
-  //                     {...circleMarkerStyle}
-  //                     color={getSessionColor(session.id)}
-  //                     radius={isCurrentUser ? 10 : 8}
-  //                     opacity={session.isDummy ? 0.5 : 1}
-  //                   >
-  //                   <Popup>
-  //                     <div className="p-2">
-  //                       <h3 className="font-bold mb-2">
-  //                         {session.isDummy ? 'Simulated User' : 
-  //                         session.id === sessionId.current ? 'You' : 'Other Protester'}
-  //                       </h3>
-  //                       <ul className="text-sm">
-  //                         <li><strong>Session ID:</strong> {session.id.slice(0, 8)}...</li>
-  //                         <li><strong>Joined:</strong> {new Date(session.joinedAt).toLocaleTimeString()}</li>
-  //                         <li><strong>Last Update:</strong> {new Date(session.lastUpdate).toLocaleTimeString()}</li>
-  //                         <li><strong>Location:</strong> {session.position[0].toFixed(4)}, {session.position[1].toFixed(4)}</li>
-  //                         {session.isDummy && <li className="text-gray-500">(Simulated User)</li>}
-  //                       </ul>
-  //                     </div>
-  //                   </Popup>
-  //                 </CircleMarker>
-  //                 );
-  //             })}
-  //             {alertMarkers.map(marker => (
-  //               <Marker
-  //                 key={marker.id}
-  //                 position={marker.position}
-  //                 icon={L.divIcon({
-  //                   html: `<img src="${ALERT_CONFIGS[marker.type].icon}" class="w-6 h-6" />`,
-  //                   className: '',
-  //                   iconSize: ALERT_CONFIGS[marker.type].size as PointTuple,
-  //                 })}
-  //               >
-  //                 <Popup>
-  //                   <div className="p-2">
-  //                     <h3 className="font-bold mb-2">{ALERT_CONFIGS[marker.type].tooltip}</h3>
-  //                     <p className="text-sm mb-2">
-  //                       Expires in: {Math.max(0, Math.floor((30000 - (Date.now() - marker.createdAt)) / 1000))}s
-  //                     </p>
-  //                     {marker.creatorId === sessionId.current && (
-  //                       <button
-  //                         onClick={() => handleRemoveAlertMarker(marker.id)}
-  //                         className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm"
-  //                       >
-  //                         Delete Marker
-  //                       </button>
-  //                     )}
-  //                   </div>
-  //                 </Popup>
-  //               </Marker>
-  //             ))}
-  //           </MapContainer>
-  //       </div>
-  //     </div>
-  // );
 };
