@@ -82,22 +82,25 @@ cleanup_thread.start()
 
 @routes_bp.route('/api/activeConnections', methods=['GET'])
 def get_active_connections():
-    """Get count of non-dummy active sessions in last 30 seconds"""
+    """Get count of non-dummy active sessions that are tracking in last 30 seconds"""
     current_time = time.time() * 1000
     with session_lock:
         active_count = sum(
             1 for session in active_sessions.values()
             if not session.get('isDummy', False)
+            and session.get('isTracking', False)  # Only count if tracking is enabled
             and current_time - session.get('timestamp', 0) < 30000
         )
     return jsonify({'active': active_count})
 
 @routes_bp.route('/api/location', methods=['POST'])
 def update_location():
+    current_time = time.time() * 1000
     data = request.json
     session_id = data.get('sessionId')
     position = data.get('position')
     timestamp = data.get('timestamp', time.time() * 1000)
+    is_tracking = data.get('isTracking', False)  # Get tracking status
     
     if not all([session_id, position]):
         return jsonify({'error': 'Missing required fields'}), 400
@@ -111,19 +114,24 @@ def update_location():
             'joinedAt': data.get('joinedAt', datetime.now().isoformat()),
             'ip': request.remote_addr,
             'alert': data.get('alert'),
-            'isDummy': False
+            'isDummy': False,
+            'isTracking': is_tracking  # Store tracking status
         })
         
-        # Force cache update for connection count
-        get_cached_connection_count.cache_clear()
-        current_count = count_active_connections()
+        # Count active connections (non-dummy and tracking enabled)
+        active_count = sum(
+            1 for s in active_sessions.values()
+            if not s.get('isDummy', False) 
+            and s.get('isTracking', False)
+            and current_time - s.get('timestamp', 0) < 30000
+        )
         
     return jsonify({
         'success': True,
-        'activeConnections': current_count,
+        'activeConnections': active_count,
         'isNewSession': is_new_session
     })
-    
+        
 @routes_bp.route('/api/sessions', methods=['GET'])
 def get_sessions():
     try:

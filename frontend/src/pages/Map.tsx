@@ -80,7 +80,8 @@ interface Session {
   isDummy: boolean;
   creatorId?: string;
   ip?: string;
-  alert?: AlertType | null;  // Update this line to allow null
+  alert?: AlertType | null;
+  isTracking?: boolean;  // Add this field
 }
 
 const ALERT_CONFIGS: {
@@ -188,8 +189,8 @@ export const Map: React.FC = () => {
   
   useEffect(() => {
     if (isTracking) {
-      setConnectionStatus('connected');
       // Immediately notify server about connection
+      setConnectionStatus('connected');
       updateServerPosition(position).then(() => {
         // Force refresh active connections after connecting
         fetch(`${API_URL}/api/activeConnections`, {
@@ -279,18 +280,19 @@ export const Map: React.FC = () => {
             lastUpdate: Date.now(),
             joinedAt: new Date().toISOString(),
             isDummy: false,
-            alert: null
+            alert: null,
+            isTracking: isTracking // Add tracking status
           }
         ];
       }
       return prev.map(s => 
         s.id === sessionId.current 
-          ? { ...s, position, lastUpdate: Date.now() }
+          ? { ...s, position, lastUpdate: Date.now(), isTracking }
           : s
       );
     });
-  }, [position]);
-
+  }, [position, isTracking]); // Add isTracking to dependencies
+  
   const runClusterSimulation = () => {
     const dummySessions = sessions.filter(s => s.isDummy);
     if (dummySessions.length === 0) return;
@@ -591,7 +593,7 @@ export const Map: React.FC = () => {
           timestamp: Date.now(),
           joinedAt: new Date().toISOString(),
           alert: alert,
-          status: isTracking ? 'connected' : 'disconnected'
+          isTracking: isTracking // Add this field
         }),
       });
       
@@ -603,7 +605,7 @@ export const Map: React.FC = () => {
       console.error('Failed updating server position:', error);
     }
   };
-
+  
   const fetchSessions = async (dummyCountParam?: number) => {
     try {
       const response = await fetch(`${API_URL}/api/sessions?dummy_count=${dummyCountParam || 0}&creator_id=${sessionId.current}`, {
