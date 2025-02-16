@@ -14,7 +14,7 @@ const API_URL = process.env.NODE_ENV === 'production'
 
 type HeatmapPoint = [number, number, number];
 
-const DEFAULT_ZOOM = 13; // Add this constant at the top with other constant
+const DEFAULT_ZOOM = 13; // Add this constant at the top with other constan
 
 const DOT_COLORS = [
   '#3B82F6', // blue
