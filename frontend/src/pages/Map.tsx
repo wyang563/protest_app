@@ -11,6 +11,8 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 type HeatmapPoint = [number, number, number];
 
+const DEFAULT_ZOOM = 13; // Add this constant at the top with other constants
+
 const DOT_COLORS = [
   '#3B82F6', // blue
   '#10B981', // green
@@ -354,7 +356,10 @@ export const Map: React.FC = () => {
   
   const handleCenterMap = () => {
     if (mapRef.current) {
-      mapRef.current.setView(position, 15);
+      mapRef.current.setView(position, DEFAULT_ZOOM, {
+        animate: true,
+        duration: 1
+      });
     }
   };
   
@@ -460,9 +465,9 @@ export const Map: React.FC = () => {
         <div className="h-[600px] w-[600px] mx-auto rounded-lg overflow-hidden shadow-lg">
           <MapContainer 
             center={position} 
-            zoom={15}
+            zoom={DEFAULT_ZOOM} // Use default zoom instead of 15
             style={mapStyle}
-            ref={mapRef}
+            ref={mapRef} // Fix ref assignment
             zoomControl={true}
             attributionControl={false}
             dragging={true}
